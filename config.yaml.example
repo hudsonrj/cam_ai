@@ -1,0 +1,25 @@
+camera:
+  host: 192.168.X.X
+  user: seu_usuario
+  password: "sua_senha"
+  rtsp_path: /stream1
+  interval_seconds: 5
+
+audio:
+  device: 2  # índice do dispositivo de microfone (sounddevice)
+
+bedrock:
+  region: us-east-1
+  model_id: us.anthropic.claude-sonnet-4-6
+
+owner_photo: data/owner.jpg
+
+telegram:
+  bot_token: "SEU_BOT_TOKEN"
+  chat_id: "SEU_CHAT_ID"
+
+rules:
+  - event: owner_recognized
+    actions:
+      - type: announce_agenda
+        dashboard_url: "http://127.0.0.1:8888"
