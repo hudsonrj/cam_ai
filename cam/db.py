@@ -49,6 +49,10 @@ def init_db(conn: sqlite3.Connection) -> None:
     except Exception:
         pass
 
+    # Inicializa tabelas de audio ambiente
+    from cam.ambient_store import init_ambient_tables
+    init_ambient_tables(conn)
+
 
 def insert_frame(conn: sqlite3.Connection, frame_path: str, description: str,
                  raw_response: str, camera_id: str = "main") -> int:

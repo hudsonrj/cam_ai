@@ -63,6 +63,14 @@ telegram:
   chat_id: "SEU_CHAT_ID"
   cooldown_minutes: 10    # intervalo mínimo entre alertas do mesmo tipo
 
+# ── Gravacao de ambiente (transcricao continua) ───────────────────────────────
+# Grava de todos os microfones ativos, transcreve em chunks de 30s com Whisper,
+# descarta o audio e salva o texto no banco com timestamp.
+# O assistente usa esses registros para responder "o que aconteceu as 14h?".
+ambient:
+  enabled: true
+  # devices: [0, 2]   # indices especificos; omitir = todos os microfones ativos
+
 # ── Home Assistant ────────────────────────────────────────────────────────────
 # Integração bidirecional com o Home Assistant.
 #

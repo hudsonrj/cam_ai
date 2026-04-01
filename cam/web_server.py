@@ -25,6 +25,8 @@ from starlette.concurrency import run_in_threadpool
 from cam.db import get_recent_frames, get_recent_summaries, open_db
 
 _multi_service = None   # MultiCameraService
+_ambient_recorder = None
+_ambient_transcriber = None
 _db_path = "data/cam.db"
 _ws_clients: set[WebSocket] = set()
 _web_queue: asyncio.Queue | None = None  # set on startup
@@ -37,6 +39,12 @@ _STATIC = Path(__file__).parent / "web"
 def set_service(service) -> None:
     global _multi_service
     _multi_service = service
+
+
+def set_ambient(recorder, transcriber) -> None:
+    global _ambient_recorder, _ambient_transcriber
+    _ambient_recorder = recorder
+    _ambient_transcriber = transcriber
 
 
 # ── Startup: bridge threading service → async queue ──────────────────────────
@@ -191,6 +199,74 @@ async def generate_summary():
     return await _run()
 
 
+# ── Ambient Audio API ────────────────────────────────────────────────────────
+
+@app.get("/api/ambient/devices")
+async def get_ambient_devices():
+    if _ambient_recorder:
+        return {"devices": _ambient_recorder.active_devices}
+    return {"devices": []}
+
+
+@app.get("/api/ambient")
+async def get_ambient(
+    date: str | None = None,
+    hour: int | None = None,
+    minute: int | None = None,
+    limit: int = 100,
+):
+    from datetime import date as _date
+    from cam.ambient_store import query_by_day, query_by_hour, query_by_minute
+
+    target_date = date or _date.today().isoformat()
+
+    def _query():
+        conn = sqlite3.connect(_db_path, check_same_thread=False)
+        try:
+            if minute is not None and hour is not None:
+                return query_by_minute(conn, target_date, hour, minute)
+            elif hour is not None:
+                return query_by_hour(conn, target_date, hour)
+            else:
+                rows = query_by_day(conn, target_date)
+                return rows[:limit]
+        finally:
+            conn.close()
+
+    return await run_in_threadpool(_query)
+
+
+@app.get("/api/ambient/search")
+async def search_ambient(q: str, date: str | None = None, limit: int = 20):
+    from cam.ambient_store import search_text
+
+    def _query():
+        conn = sqlite3.connect(_db_path, check_same_thread=False)
+        try:
+            return search_text(conn, q, limit=limit, date=date)
+        finally:
+            conn.close()
+
+    return await run_in_threadpool(_query)
+
+
+@app.get("/api/ambient/stats")
+async def get_ambient_stats(date: str | None = None):
+    from datetime import date as _date
+    from cam.ambient_store import get_ambient_stats
+
+    target_date = date or _date.today().isoformat()
+
+    def _query():
+        conn = sqlite3.connect(_db_path, check_same_thread=False)
+        try:
+            return get_ambient_stats(conn, target_date)
+        finally:
+            conn.close()
+
+    return await run_in_threadpool(_query)
+
+
 # ── WebSocket ─────────────────────────────────────────────────────────────────
 
 _assistant_instances: dict[str, object] = {}  # ws_id → ConversationAssistant
@@ -249,13 +325,27 @@ async def _handle_chat(ws: WebSocket, ws_id: str, msg: dict) -> None:
 
             jpeg = _multi_service.get_last_jpeg(camera_id) if _multi_service else None
 
-            # Contexto histórico do dia + memória persistente
+            # Contexto: resumos diarios + audio ambiente recente
             def _ctx():
                 conn = sqlite3.connect(_db_path, check_same_thread=False)
-                from cam.daily_summary import get_context_for_assistant
-                ctx = get_context_for_assistant(conn, days=7)
-                conn.close()
-                return ctx
+                try:
+                    from cam.daily_summary import get_context_for_assistant
+                    from cam.ambient_store import get_recent_ambient, search_context
+                    summary_ctx = get_context_for_assistant(conn, days=7)
+                    # Ultimos 30 min de audio ambiente
+                    ambient_recent = get_recent_ambient(conn, minutes=30)
+                    # Busca semantica por palavras da pergunta do usuario
+                    ambient_search = search_context(conn, text[:200]) if text else ""
+                    parts = []
+                    if summary_ctx:
+                        parts.append(f"[Resumos dos ultimos dias]\n{summary_ctx}")
+                    if ambient_recent:
+                        parts.append(f"[Audio ambiente - ultimos 30min]\n{ambient_recent}")
+                    elif ambient_search:
+                        parts.append(f"[Audio ambiente - busca]\n{ambient_search}")
+                    return "\n\n".join(parts)
+                finally:
+                    conn.close()
 
             context = await run_in_threadpool(_ctx)
 

@@ -25,14 +25,35 @@ def cmd_start():
 
 
 def cmd_web():
+    import queue as _queue
     import uvicorn
     from cam.service import load_config, MultiCameraService
-    from cam.web_server import app, set_service
+    from cam.web_server import app, set_service, set_ambient
+    from cam.ambient_recorder import AmbientRecorder
+    from cam.ambient_transcriber import AmbientTranscriber
 
     cfg = load_config()
+
+    # Camera service
     service = MultiCameraService(cfg)
     service.start()
     set_service(service)
+
+    # Ambient audio recording
+    ambient_cfg = cfg.get("ambient", {})
+    if ambient_cfg.get("enabled", True):
+        chunk_queue = _queue.Queue(maxsize=200)
+        device_indices = ambient_cfg.get("devices")  # None = todos
+        recorder = AmbientRecorder(chunk_queue, device_indices=device_indices)
+        transcriber = AmbientTranscriber(chunk_queue)
+        started = recorder.start()
+        transcriber.start()
+        set_ambient(recorder, transcriber)
+        if started:
+            names = ", ".join(d["name"] for d in started)
+            print(f"Gravacao de ambiente: {len(started)} microfone(s) — {names}")
+        else:
+            print("Aviso: nenhum microfone encontrado para gravacao de ambiente.")
 
     host = cfg.get("web", {}).get("host", "0.0.0.0")
     port = cfg.get("web", {}).get("port", 8080)
