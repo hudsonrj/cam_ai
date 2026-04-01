@@ -63,6 +63,29 @@ telegram:
   chat_id: "SEU_CHAT_ID"
   cooldown_minutes: 10    # intervalo mínimo entre alertas do mesmo tipo
 
+# ── Home Assistant ────────────────────────────────────────────────────────────
+# Integração bidirecional com o Home Assistant.
+#
+# Push automático: todos os eventos detectados são enviados via webhook.
+# No HA, crie uma automação com trigger "Webhook" usando o mesmo webhook_id.
+#
+# Opcional — REST API: atualiza sensores diretamente.
+# Requer um Long-Lived Access Token gerado em Perfil → Tokens de Acesso.
+#
+# Exemplo de automação no HA:
+#   trigger:
+#     - platform: webhook
+#       webhook_id: cam_ai          ← o ID que aparece na URL abaixo
+#   action:
+#     - service: notify.mobile_app
+#       data:
+#         message: "{{ trigger.json.event_type }} — {{ trigger.json.description }}"
+home_assistant:
+  webhook_url: "http://homeassistant.local:8123/api/webhook/cam_ai"
+  base_url: "http://homeassistant.local:8123"   # para REST API (push_state)
+  token: "SEU_LONG_LIVED_TOKEN"
+  cooldown_minutes: 1
+
 # ── Dashboard web ─────────────────────────────────────────────────────────────
 web:
   host: "0.0.0.0"
@@ -93,6 +116,12 @@ rules:
   #   actions:
   #     - type: telegram
   #       message: "Morador saiu de casa."
+  #     - type: home_assistant         # notifica HA via webhook
+  #
+  # - event: unknown_person_detected
+  #   actions:
+  #     - type: home_assistant
+  #       entity_id: sensor.cam_ai_intruso   # atualiza sensor via REST API
   #
   # - event: person_sitting_at_pc
   #   actions:

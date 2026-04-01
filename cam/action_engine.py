@@ -162,6 +162,7 @@ def execute_actions(
     frames_dir: str,
     telegram_cfg: dict | None,
     tts_engine,
+    ha_cfg: dict | None = None,
 ) -> list[dict]:
     results = []
     saved_frame_path = None
@@ -210,6 +211,34 @@ def execute_actions(
                         result.update(res)
                     else:
                         result.update({"payload": "cooldown ativo", "status": "skipped"})
+
+                elif action_type == "home_assistant" and ha_cfg:
+                    from cam.home_assistant import push_event, push_state
+                    ev_type = event.get("event_type", "")
+                    entity_id = action.get("entity_id", "")
+                    if entity_id:
+                        # Atualiza sensor via REST API
+                        res = push_state(
+                            entity_id=entity_id,
+                            state=ev_type,
+                            attributes={
+                                "event_type": ev_type,
+                                "confidence": event.get("confidence", 1.0),
+                                "frame_path": saved_frame_path or "",
+                            },
+                            ha_cfg=ha_cfg,
+                        )
+                    else:
+                        # Push via webhook
+                        res = push_event(
+                            event_type=ev_type,
+                            confidence=event.get("confidence", 1.0),
+                            description=ev_type,
+                            camera_id=event.get("camera_id", "main"),
+                            frame_id=None,
+                            ha_cfg=ha_cfg,
+                        )
+                    result.update({"payload": str(res), "status": res.get("status", "error")})
 
                 else:
                     result.update({"payload": None, "status": "skipped"})

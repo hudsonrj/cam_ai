@@ -197,6 +197,7 @@ class CameraService:
 
         bedrock_cfg = self.config["bedrock"]
         telegram_cfg = self.config.get("telegram")
+        ha_cfg = self.config.get("home_assistant")
         rules = self.config.get("rules", [])
         bearer_token = os.environ.get("AWS_BEARER_TOKEN_BEDROCK", "")
 
@@ -265,9 +266,22 @@ class CameraService:
                         except Exception:
                             pass
 
+                # Push automático para Home Assistant (todos os eventos)
+                if ha_cfg and ha_cfg.get("webhook_url"):
+                    from cam.home_assistant import push_event as ha_push
+                    for ev in triggered:
+                        ha_push(
+                            event_type=ev["event_type"],
+                            confidence=ev.get("confidence", 1.0),
+                            description=analysis["description"],
+                            camera_id=self.camera_id,
+                            frame_id=frame_id,
+                            ha_cfg=ha_cfg,
+                        )
+
                 action_results = execute_actions(
                     triggered, jpeg_bytes, frames_dir="frames",
-                    telegram_cfg=telegram_cfg, tts_engine=None,
+                    telegram_cfg=telegram_cfg, ha_cfg=ha_cfg, tts_engine=None,
                 )
 
                 for event in triggered:
