@@ -29,3 +29,9 @@ dist/
 # Whisper model cache
 *.bin
 *.pt
+
+# Scripts temporarios de diagnostico
+_test_*.py
+_scan_*.py
+ca_agent.py
+ca_runner.py
