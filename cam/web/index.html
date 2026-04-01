@@ -529,45 +529,32 @@
       gap: 8px;
     }
 
-    #avatar-input-row {
+    #avatar-voice-bar {
       display: flex;
-      align-items: flex-end;
-      gap: 6px;
-      padding: 8px 10px;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 12px 14px;
       border-top: 1px solid #30363d;
       background: #161b22;
       flex-shrink: 0;
     }
 
-    #avatar-input {
-      flex: 1;
-      background: #0d1117;
-      border: 1px solid #30363d;
-      border-radius: 8px;
-      padding: 7px 10px;
-      color: #c9d1d9;
-      font-family: var(--font);
-      font-size: 13px;
-      resize: none;
-      min-height: 34px;
-      max-height: 80px;
-      outline: none;
-      transition: border-color .15s;
-    }
-    #avatar-input:focus { border-color: #58a6ff; }
-    #avatar-input::placeholder { color: #8b949e; }
-
     #avatar-btn-mic {
-      width: 32px; height: 32px;
-      border-radius: 8px;
-      border: 1px solid #30363d;
-      background: transparent;
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      border: 2px solid #30363d;
+      background: #0d1117;
       color: #c9d1d9;
-      font-size: 15px;
+      font-size: 20px;
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
-      transition: background .15s, border-color .15s;
+      transition: background .15s, border-color .15s, box-shadow .15s;
+    }
+    #avatar-btn-mic:hover {
+      border-color: #58a6ff;
+      box-shadow: 0 0 12px rgba(88,166,255,.3);
     }
     #avatar-btn-mic.listening {
       background: rgba(255,68,68,.15);
@@ -576,19 +563,12 @@
       animation: mic-pulse .8s ease-in-out infinite;
     }
 
-    #avatar-btn-send {
-      width: 32px; height: 32px;
-      border-radius: 8px;
-      border: none;
-      background: #58a6ff;
-      color: #fff;
-      font-size: 16px;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-      transition: opacity .15s;
+    #avatar-voice-label {
+      font-size: 11px;
+      color: #8b949e;
+      text-align: center;
+      min-width: 80px;
     }
-    #avatar-btn-send:hover { opacity: .8; }
 
     /* Botão principal do avatar */
     #avatar-btn {
@@ -750,10 +730,9 @@
       <button id="avatar-panel-close" title="Fechar">&times;</button>
     </div>
     <div id="avatar-messages"></div>
-    <div id="avatar-input-row">
-      <textarea id="avatar-input" rows="1" placeholder="Pergunte algo..."></textarea>
-      <button id="avatar-btn-mic" title="Microfone">&#127908;</button>
-      <button id="avatar-btn-send" title="Enviar">&#10148;</button>
+    <div id="avatar-voice-bar">
+      <button id="avatar-btn-mic" title="Clique para falar">&#127908;</button>
+      <span id="avatar-voice-label">Clique para falar</span>
     </div>
   </div>
   <!-- Botão do avatar -->
@@ -1413,23 +1392,16 @@ const avatar = {
 };
 
 function initAvatar() {
-  const btn        = $('avatar-btn');
-  const panel      = $('avatar-panel');
-  const closeBtn   = $('avatar-panel-close');
-  const sendBtn    = $('avatar-btn-send');
-  const micBtn     = $('avatar-btn-mic');
-  const input      = $('avatar-input');
-  const badge      = $('avatar-badge');
+  const btn      = $('avatar-btn');
+  const panel    = $('avatar-panel');
+  const closeBtn = $('avatar-panel-close');
+  const micBtn   = $('avatar-btn-mic');
 
-  // toggle painel
   btn.addEventListener('click', () => {
     avatar.open = !avatar.open;
     panel.classList.toggle('open', avatar.open);
-    if (avatar.open) {
-      input.focus();
-      if (!$('avatar-messages').firstChild) {
-        appendAvatarBubble('bot', 'Olá, Hudson! Estou aqui. Pode falar comigo sobre qualquer coisa — o que está acontecendo, como foi seu dia, ou perguntar o que a câmera está vendo agora.');
-      }
+    if (avatar.open && !$('avatar-messages').firstChild) {
+      appendAvatarBubble('bot', 'Olá, Hudson! Clique no microfone e fale comigo. Posso conversar sobre qualquer coisa — o que aconteceu hoje, o que a câmera está vendo, ou qualquer outro assunto.');
     }
   });
 
@@ -1437,42 +1409,17 @@ function initAvatar() {
     e.stopPropagation();
     avatar.open = false;
     panel.classList.remove('open');
-  });
-
-  sendBtn.addEventListener('click', () => submitAvatarChat());
-
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      submitAvatarChat();
-    }
-  });
-
-  input.addEventListener('input', () => {
-    input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, 80) + 'px';
+    stopAvatarMic();
   });
 
   micBtn.addEventListener('click', () => toggleAvatarMic());
-
-  // badge de status sincronizado com WS
-  const origSetStatus = setStatus;
-  window._avatarSyncStatus = mode => {
-    badge.className = mode === 'live' ? '' : 'offline';
-  };
 }
 
-function submitAvatarChat() {
-  const input = $('avatar-input');
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-  input.style.height = 'auto';
-
+function submitAvatarChat(text) {
+  if (!text || !text.trim()) return;
   appendAvatarBubble('user', text);
   state.lastChatSource = 'avatar';
   wsSend({ type: 'chat', text, camera_id: state.activeCameraId });
-
   setAvatarThinking(true);
 }
 
@@ -1512,9 +1459,10 @@ function appendAvatarBubble(role, text, isThinking = false) {
 }
 
 function handleAvatarReply(msg) {
-  if (msg.thinking) return; // já mostramos via setAvatarThinking
+  if (msg.thinking) return;
 
   setAvatarThinking(false);
+  $('avatar-voice-label').textContent = 'Clique para falar';
   const text = msg.text || '';
   appendAvatarBubble('bot', text);
   ttsSpeak(text);
@@ -1529,7 +1477,10 @@ function toggleAvatarMic() {
 }
 
 function startAvatarMic() {
-  if (!SpeechRecognition) return;
+  if (!SpeechRecognition) {
+    appendAvatarBubble('bot', 'Reconhecimento de voz não está disponível neste navegador. Use o Chrome.');
+    return;
+  }
   if (avatar.recognition) {
     try { avatar.recognition.abort(); } catch (_) {}
   }
@@ -1538,17 +1489,15 @@ function startAvatarMic() {
   avatar.recognition = rec;
   avatar.micListening = true;
 
-  const btn    = $('avatar-btn');
-  const micBtn = $('avatar-btn-mic');
-  btn.classList.remove('idle', 'thinking');
-  btn.classList.add('listening-av');
-  micBtn.classList.add('listening');
+  $('avatar-btn').classList.remove('idle', 'thinking');
+  $('avatar-btn').classList.add('listening-av');
+  $('avatar-btn-mic').classList.add('listening');
+  $('avatar-voice-label').textContent = 'Ouvindo...';
 
   rec.onresult = e => {
     const t = e.results[0][0].transcript;
-    $('avatar-input').value = t;
     stopAvatarMic();
-    submitAvatarChat();
+    submitAvatarChat(t);
   };
   rec.onerror = () => stopAvatarMic();
   rec.onend   = () => stopAvatarMic();
@@ -1557,11 +1506,10 @@ function startAvatarMic() {
 
 function stopAvatarMic() {
   avatar.micListening = false;
-  const btn    = $('avatar-btn');
-  const micBtn = $('avatar-btn-mic');
-  btn.classList.remove('listening-av');
-  btn.classList.add(avatar.thinking ? 'thinking' : 'idle');
-  micBtn.classList.remove('listening');
+  $('avatar-btn').classList.remove('listening-av');
+  $('avatar-btn').classList.add(avatar.thinking ? 'thinking' : 'idle');
+  $('avatar-btn-mic').classList.remove('listening');
+  $('avatar-voice-label').textContent = avatar.thinking ? 'Processando...' : 'Clique para falar';
   if (avatar.recognition) {
     try { avatar.recognition.abort(); } catch (_) {}
     avatar.recognition = null;
