@@ -432,6 +432,244 @@
       50%  { content: '..'; }
       75%  { content: '...'; }
     }
+
+    /* ── AVATAR FLUTUANTE ── */
+    #avatar-wrap {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 12px;
+    }
+
+    /* Painel de chat do avatar */
+    #avatar-panel {
+      width: 320px;
+      height: 440px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,.6);
+      transform-origin: bottom right;
+      transform: scale(0);
+      opacity: 0;
+      transition: transform .25s cubic-bezier(.34,1.56,.64,1), opacity .2s;
+      pointer-events: none;
+    }
+    #avatar-panel.open {
+      transform: scale(1);
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    #avatar-panel-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px 10px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      flex-shrink: 0;
+    }
+
+    #avatar-face-small {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #7ec8f8, #1a6fad);
+      flex-shrink: 0;
+      position: relative;
+      overflow: hidden;
+    }
+    #avatar-face-small::before,
+    #avatar-face-small::after {
+      content: '';
+      position: absolute;
+      width: 7px; height: 7px;
+      background: #0d1117;
+      border-radius: 50%;
+      top: 9px;
+    }
+    #avatar-face-small::before { left: 7px; }
+    #avatar-face-small::after  { right: 7px; }
+
+    #avatar-panel-header .av-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #58a6ff;
+    }
+    #avatar-panel-header .av-sub {
+      font-size: 11px;
+      color: #8b949e;
+    }
+    #avatar-panel-close {
+      margin-left: auto;
+      background: transparent;
+      border: none;
+      color: #8b949e;
+      font-size: 18px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 2px 4px;
+    }
+    #avatar-panel-close:hover { color: #c9d1d9; }
+
+    #avatar-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 12px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #avatar-input-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      padding: 8px 10px;
+      border-top: 1px solid #30363d;
+      background: #161b22;
+      flex-shrink: 0;
+    }
+
+    #avatar-input {
+      flex: 1;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 7px 10px;
+      color: #c9d1d9;
+      font-family: var(--font);
+      font-size: 13px;
+      resize: none;
+      min-height: 34px;
+      max-height: 80px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    #avatar-input:focus { border-color: #58a6ff; }
+    #avatar-input::placeholder { color: #8b949e; }
+
+    #avatar-btn-mic {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      border: 1px solid #30363d;
+      background: transparent;
+      color: #c9d1d9;
+      font-size: 15px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background .15s, border-color .15s;
+    }
+    #avatar-btn-mic.listening {
+      background: rgba(255,68,68,.15);
+      border-color: #FF4444;
+      color: #FF4444;
+      animation: mic-pulse .8s ease-in-out infinite;
+    }
+
+    #avatar-btn-send {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      border: none;
+      background: #58a6ff;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: opacity .15s;
+    }
+    #avatar-btn-send:hover { opacity: .8; }
+
+    /* Botão principal do avatar */
+    #avatar-btn {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #7ec8f8, #1a6fad);
+      border: 3px solid #30363d;
+      cursor: pointer;
+      position: relative;
+      box-shadow: 0 4px 20px rgba(88,166,255,.35);
+      transition: box-shadow .2s, transform .15s, border-color .2s;
+      flex-shrink: 0;
+    }
+    #avatar-btn:hover {
+      transform: scale(1.07);
+      box-shadow: 0 6px 28px rgba(88,166,255,.5);
+    }
+    #avatar-btn.idle {
+      animation: avatar-idle 3.5s ease-in-out infinite;
+    }
+    #avatar-btn.thinking {
+      animation: avatar-think .7s ease-in-out infinite;
+      border-color: #58a6ff;
+    }
+    #avatar-btn.listening-av {
+      animation: avatar-listen .5s ease-in-out infinite;
+      border-color: #FF4444;
+    }
+    @keyframes avatar-idle {
+      0%, 100% { box-shadow: 0 4px 20px rgba(88,166,255,.35); }
+      50%       { box-shadow: 0 4px 28px rgba(88,166,255,.65); }
+    }
+    @keyframes avatar-think {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(88,166,255,.5); }
+      50%       { box-shadow: 0 0 0 10px rgba(88,166,255,0); }
+    }
+    @keyframes avatar-listen {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,68,68,.5); }
+      50%       { box-shadow: 0 0 0 10px rgba(255,68,68,0); }
+    }
+
+    /* Rosto do avatar */
+    #avatar-face {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      position: relative;
+      overflow: hidden;
+    }
+    /* olhos */
+    #avatar-face::before,
+    #avatar-face::after {
+      content: '';
+      position: absolute;
+      width: 10px; height: 10px;
+      background: #0d1117;
+      border-radius: 50%;
+      top: 18px;
+      transition: height .3s, top .3s;
+    }
+    #avatar-face::before { left: 12px; }
+    #avatar-face::after  { right: 12px; }
+
+    /* olhos piscando */
+    #avatar-btn.thinking #avatar-face::before,
+    #avatar-btn.thinking #avatar-face::after {
+      height: 2px;
+      top: 23px;
+    }
+
+    /* badge de status */
+    #avatar-badge {
+      position: absolute;
+      bottom: 2px; right: 2px;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #3fb950;
+      border: 2px solid #0d1117;
+    }
+    #avatar-badge.offline { background: #6e7681; }
   </style>
 </head>
 <body>
@@ -499,6 +737,32 @@
   </div><!-- /main-grid -->
 </div><!-- /app -->
 
+<!-- AVATAR FLUTUANTE -->
+<div id="avatar-wrap">
+  <!-- Painel de chat -->
+  <div id="avatar-panel">
+    <div id="avatar-panel-header">
+      <div id="avatar-face-small"></div>
+      <div>
+        <div class="av-name">CAM</div>
+        <div class="av-sub">Assistente pessoal</div>
+      </div>
+      <button id="avatar-panel-close" title="Fechar">&times;</button>
+    </div>
+    <div id="avatar-messages"></div>
+    <div id="avatar-input-row">
+      <textarea id="avatar-input" rows="1" placeholder="Pergunte algo..."></textarea>
+      <button id="avatar-btn-mic" title="Microfone">&#127908;</button>
+      <button id="avatar-btn-send" title="Enviar">&#10148;</button>
+    </div>
+  </div>
+  <!-- Botão do avatar -->
+  <button id="avatar-btn" class="idle" title="Assistente pessoal CAM" aria-label="Abrir assistente">
+    <div id="avatar-face"></div>
+    <div id="avatar-badge"></div>
+  </button>
+</div>
+
 <!-- MODAL -->
 <div id="modal-overlay">
   <div id="modal-box">
@@ -514,8 +778,8 @@
 /* ════════════════════════════════════════════════
    CONFIG
    ════════════════════════════════════════════════ */
-const API_BASE = 'http://localhost:8765';
-const WS_URL   = 'ws://localhost:8765/ws';
+const API_BASE = '';
+const WS_URL   = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
 const RECONNECT_DELAY = 3000;
 
 /* ════════════════════════════════════════════════
@@ -532,6 +796,7 @@ const state = {
   wakeWordRecognition: null,
   chatRecognition:     null,
   thinkingBubble: null,
+  lastChatSource: 'main',    // 'main' | 'avatar'
 };
 
 /* ════════════════════════════════════════════════
@@ -710,6 +975,8 @@ function wsSend(obj) {
 function setStatus(mode, label) {
   dom.statusDot.className = mode === 'live' ? 'live' : 'offline';
   dom.statusLabel.textContent = label;
+  const badge = $('avatar-badge');
+  if (badge) badge.className = mode === 'live' ? '' : 'offline';
 }
 
 /* ════════════════════════════════════════════════
@@ -811,7 +1078,13 @@ async function loadHistory() {
    CHAT
    ════════════════════════════════════════════════ */
 function handleChatReply(msg) {
-  // remove thinking bubble
+  // rota para o avatar se foi ele quem enviou a última mensagem
+  if (state.lastChatSource === 'avatar') {
+    handleAvatarReply(msg);
+    return;
+  }
+
+  // painel lateral de monitoramento
   if (state.thinkingBubble) {
     state.thinkingBubble.remove();
     state.thinkingBubble = null;
@@ -835,6 +1108,7 @@ function handleProactive(msg) {
 
 function sendChat(text) {
   if (!text.trim()) return;
+  state.lastChatSource = 'main';
   appendBubble('user', text);
   wsSend({ type: 'chat', text, camera_id: state.activeCameraId });
 
@@ -1128,10 +1402,177 @@ function escHtml(str) {
 }
 
 /* ════════════════════════════════════════════════
+   AVATAR FLUTUANTE
+   ════════════════════════════════════════════════ */
+const avatar = {
+  open:           false,
+  thinking:       false,
+  micListening:   false,
+  thinkingBubble: null,
+  recognition:    null,
+};
+
+function initAvatar() {
+  const btn        = $('avatar-btn');
+  const panel      = $('avatar-panel');
+  const closeBtn   = $('avatar-panel-close');
+  const sendBtn    = $('avatar-btn-send');
+  const micBtn     = $('avatar-btn-mic');
+  const input      = $('avatar-input');
+  const badge      = $('avatar-badge');
+
+  // toggle painel
+  btn.addEventListener('click', () => {
+    avatar.open = !avatar.open;
+    panel.classList.toggle('open', avatar.open);
+    if (avatar.open) {
+      input.focus();
+      if (!$('avatar-messages').firstChild) {
+        appendAvatarBubble('bot', 'Olá, Hudson! Estou aqui. Pode falar comigo sobre qualquer coisa — o que está acontecendo, como foi seu dia, ou perguntar o que a câmera está vendo agora.');
+      }
+    }
+  });
+
+  closeBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    avatar.open = false;
+    panel.classList.remove('open');
+  });
+
+  sendBtn.addEventListener('click', () => submitAvatarChat());
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      submitAvatarChat();
+    }
+  });
+
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 80) + 'px';
+  });
+
+  micBtn.addEventListener('click', () => toggleAvatarMic());
+
+  // badge de status sincronizado com WS
+  const origSetStatus = setStatus;
+  window._avatarSyncStatus = mode => {
+    badge.className = mode === 'live' ? '' : 'offline';
+  };
+}
+
+function submitAvatarChat() {
+  const input = $('avatar-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  input.style.height = 'auto';
+
+  appendAvatarBubble('user', text);
+  state.lastChatSource = 'avatar';
+  wsSend({ type: 'chat', text, camera_id: state.activeCameraId });
+
+  setAvatarThinking(true);
+}
+
+function setAvatarThinking(on) {
+  avatar.thinking = on;
+  const btn = $('avatar-btn');
+  btn.classList.toggle('thinking', on);
+  btn.classList.toggle('idle', !on && !avatar.micListening);
+
+  if (on) {
+    if (!avatar.thinkingBubble) {
+      avatar.thinkingBubble = appendAvatarBubble('bot', '', true);
+    }
+  } else {
+    if (avatar.thinkingBubble) {
+      avatar.thinkingBubble.remove();
+      avatar.thinkingBubble = null;
+    }
+  }
+}
+
+function appendAvatarBubble(role, text, isThinking = false) {
+  const msgs = $('avatar-messages');
+  const wrap = document.createElement('div');
+  wrap.className = `bubble ${role}${isThinking ? ' thinking' : ''}`;
+
+  const label = role === 'user' ? 'Você' : 'CAM';
+  if (isThinking) {
+    wrap.innerHTML = `<div class="bubble-label">${label}</div><span class="dots"></span>`;
+  } else {
+    wrap.innerHTML = `<div class="bubble-label">${label}</div>${escHtml(text).replace(/\n/g, '<br>')}`;
+  }
+
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+  return wrap;
+}
+
+function handleAvatarReply(msg) {
+  if (msg.thinking) return; // já mostramos via setAvatarThinking
+
+  setAvatarThinking(false);
+  const text = msg.text || '';
+  appendAvatarBubble('bot', text);
+  ttsSpeak(text);
+}
+
+function toggleAvatarMic() {
+  if (avatar.micListening) {
+    stopAvatarMic();
+  } else {
+    startAvatarMic();
+  }
+}
+
+function startAvatarMic() {
+  if (!SpeechRecognition) return;
+  if (avatar.recognition) {
+    try { avatar.recognition.abort(); } catch (_) {}
+  }
+
+  const rec = createRecognition({ interim: false, continuous: false });
+  avatar.recognition = rec;
+  avatar.micListening = true;
+
+  const btn    = $('avatar-btn');
+  const micBtn = $('avatar-btn-mic');
+  btn.classList.remove('idle', 'thinking');
+  btn.classList.add('listening-av');
+  micBtn.classList.add('listening');
+
+  rec.onresult = e => {
+    const t = e.results[0][0].transcript;
+    $('avatar-input').value = t;
+    stopAvatarMic();
+    submitAvatarChat();
+  };
+  rec.onerror = () => stopAvatarMic();
+  rec.onend   = () => stopAvatarMic();
+  try { rec.start(); } catch (_) { stopAvatarMic(); }
+}
+
+function stopAvatarMic() {
+  avatar.micListening = false;
+  const btn    = $('avatar-btn');
+  const micBtn = $('avatar-btn-mic');
+  btn.classList.remove('listening-av');
+  btn.classList.add(avatar.thinking ? 'thinking' : 'idle');
+  micBtn.classList.remove('listening');
+  if (avatar.recognition) {
+    try { avatar.recognition.abort(); } catch (_) {}
+    avatar.recognition = null;
+  }
+}
+
+/* ════════════════════════════════════════════════
    INIT — WELCOME MESSAGE
    ════════════════════════════════════════════════ */
 function showWelcome() {
-  appendBubble('bot', 'Olá! Estou pronto para monitorar. Pergunte-me o que estou vendo ou peça um resumo.');
+  appendBubble('bot', 'Monitoramento ativo. Pergunte o que estou vendo ou peça um resumo do dia.');
 }
 
 /* ════════════════════════════════════════════════
@@ -1145,6 +1586,7 @@ async function init() {
   initMicButton();
   initWakeWordButton();
   initPatternsButton();
+  initAvatar();
 
   showWelcome();
 
