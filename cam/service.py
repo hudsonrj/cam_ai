@@ -55,6 +55,7 @@ class CameraService:
         self.config = load_config(config_path)
         self.gui_queue = gui_queue
         self._stop_event = threading.Event()
+        self._last_jpeg: bytes | None = None
         self._capture_thread: threading.Thread | None = None
         self._analysis_thread: threading.Thread | None = None
         self._analysis_queue: queue.Queue = queue.Queue(maxsize=2)
@@ -75,6 +76,13 @@ class CameraService:
 
     def is_running(self) -> bool:
         return self._capture_thread is not None and self._capture_thread.is_alive()
+
+    def get_last_jpeg(self) -> bytes | None:
+        """Retorna o último frame capturado (para o assistente)."""
+        return self._last_jpeg
+
+    def _set_last_jpeg(self, jpeg: bytes) -> None:
+        self._last_jpeg: bytes | None = jpeg
 
     def _capture_loop(self) -> None:
         """Captura frames rapido (1s) e alimenta feed ao vivo + fila de analise."""
@@ -116,6 +124,7 @@ class CameraService:
             consecutive_failures = 0
 
             # Atualiza feed ao vivo sempre
+            self._last_jpeg = jpeg_bytes
             self._notify_gui({"type": "live_feed", "jpeg_bytes": jpeg_bytes})
 
             # Envia para analise se passaram N segundos E imagem mudou
