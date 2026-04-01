@@ -248,6 +248,77 @@ def search_context(
     return "\n".join(lines)
 
 
+def get_timeline(
+    conn: sqlite3.Connection,
+    date: str,
+    hour: int | None = None,
+    minute: int | None = None,
+) -> list[dict]:
+    """
+    Retorna um panorama combinado de camera (frames/eventos) e audio (transcricoes),
+    ordenado por timestamp. Cada entrada tem origem 'camera' ou 'audio'.
+    """
+    # Monta filtro de tempo
+    if minute is not None and hour is not None:
+        time_start = f"{date} {hour:02d}:{minute:02d}:00"
+        time_end   = f"{date} {hour:02d}:{minute:02d}:59"
+    elif hour is not None:
+        time_start = f"{date} {hour:02d}:00:00"
+        time_end   = f"{date} {hour:02d}:59:59"
+    else:
+        time_start = f"{date} 00:00:00"
+        time_end   = f"{date} 23:59:59"
+
+    # Entradas de camera (frames + eventos agregados)
+    cur = conn.execute(
+        """SELECT f.timestamp as ts, 'camera' as origin,
+                  f.camera_id as source,
+                  f.description as text,
+                  GROUP_CONCAT(e.event_type) as events,
+                  f.id as ref_id
+           FROM frames f
+           LEFT JOIN events e ON e.frame_id = f.id
+           WHERE f.timestamp >= ? AND f.timestamp <= ?
+           GROUP BY f.id
+           ORDER BY f.timestamp""",
+        (time_start, time_end),
+    )
+    camera_rows = []
+    for row in cur.fetchall():
+        camera_rows.append({
+            "ts": row[0],
+            "origin": "camera",
+            "source": row[2] or "main",
+            "text": row[3] or "",
+            "events": row[4].split(",") if row[4] else [],
+            "ref_id": row[5],
+        })
+
+    # Entradas de audio ambiente
+    cur = conn.execute(
+        """SELECT chunk_start as ts, 'audio' as origin,
+                  device_name as source, text, NULL as events, id as ref_id
+           FROM ambient_transcripts
+           WHERE chunk_start >= ? AND chunk_start <= ?
+           ORDER BY chunk_start""",
+        (time_start, time_end),
+    )
+    audio_rows = []
+    for row in cur.fetchall():
+        audio_rows.append({
+            "ts": row[0],
+            "origin": "audio",
+            "source": row[2] or "mic",
+            "text": row[3] or "",
+            "events": [],
+            "ref_id": row[5],
+        })
+
+    # Merge ordenado por timestamp
+    combined = sorted(camera_rows + audio_rows, key=lambda r: r["ts"])
+    return combined
+
+
 def get_ambient_stats(conn: sqlite3.Connection, date: str) -> dict:
     """Estatisticas do dia: total de transcricoes, duracao, dispositivos."""
     cur = conn.execute(

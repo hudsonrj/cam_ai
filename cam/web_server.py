@@ -250,6 +250,27 @@ async def search_ambient(q: str, date: str | None = None, limit: int = 20):
     return await run_in_threadpool(_query)
 
 
+@app.get("/api/timeline")
+async def get_timeline(
+    date: str | None = None,
+    hour: int | None = None,
+    minute: int | None = None,
+):
+    from datetime import date as _date
+    from cam.ambient_store import get_timeline
+
+    target_date = date or _date.today().isoformat()
+
+    def _query():
+        conn = sqlite3.connect(_db_path, check_same_thread=False)
+        try:
+            return get_timeline(conn, target_date, hour=hour, minute=minute)
+        finally:
+            conn.close()
+
+    return await run_in_threadpool(_query)
+
+
 @app.get("/api/ambient/stats")
 async def get_ambient_stats(date: str | None = None):
     from datetime import date as _date
@@ -325,24 +346,45 @@ async def _handle_chat(ws: WebSocket, ws_id: str, msg: dict) -> None:
 
             jpeg = _multi_service.get_last_jpeg(camera_id) if _multi_service else None
 
-            # Contexto: resumos diarios + audio ambiente recente
+            # Contexto: resumos diarios + timeline combinada (camera + audio)
             def _ctx():
+                from datetime import date as _date, timedelta
+                from cam.daily_summary import get_context_for_assistant
+                from cam.ambient_store import (
+                    get_timeline, search_context, get_recent_ambient,
+                )
                 conn = sqlite3.connect(_db_path, check_same_thread=False)
                 try:
-                    from cam.daily_summary import get_context_for_assistant
-                    from cam.ambient_store import get_recent_ambient, search_context
                     summary_ctx = get_context_for_assistant(conn, days=7)
-                    # Ultimos 30 min de audio ambiente
-                    ambient_recent = get_recent_ambient(conn, minutes=30)
-                    # Busca semantica por palavras da pergunta do usuario
-                    ambient_search = search_context(conn, text[:200]) if text else ""
+
+                    # Timeline das ultimas 2h (camera + audio combinados)
+                    today = _date.today().isoformat()
+                    from datetime import datetime
+                    now = datetime.now()
+                    two_h_ago = now.hour if now.minute < 30 else now.hour
+                    timeline = get_timeline(conn, today, hour=now.hour)
+                    # Adiciona hora anterior se ainda e cedo na hora atual
+                    if now.minute < 30 and now.hour > 0:
+                        prev = get_timeline(conn, today, hour=now.hour - 1)
+                        timeline = prev + timeline
+
+                    timeline_lines = []
+                    for entry in timeline[-60:]:  # max 60 entradas
+                        ts = entry["ts"][11:16]
+                        origin = "CAM" if entry["origin"] == "camera" else "MIC"
+                        evs = f" [{', '.join(entry['events'])}]" if entry["events"] else ""
+                        timeline_lines.append(f"[{ts}][{origin}]{evs} {entry['text'][:120]}")
+
+                    # Busca contextual por palavras da pergunta
+                    search_ctx = search_context(conn, text[:200]) if text else ""
+
                     parts = []
                     if summary_ctx:
                         parts.append(f"[Resumos dos ultimos dias]\n{summary_ctx}")
-                    if ambient_recent:
-                        parts.append(f"[Audio ambiente - ultimos 30min]\n{ambient_recent}")
-                    elif ambient_search:
-                        parts.append(f"[Audio ambiente - busca]\n{ambient_search}")
+                    if timeline_lines:
+                        parts.append(f"[Timeline recente - camera e audio]\n" + "\n".join(timeline_lines))
+                    elif search_ctx:
+                        parts.append(f"[Registros encontrados]\n{search_ctx}")
                     return "\n\n".join(parts)
                 finally:
                     conn.close()
