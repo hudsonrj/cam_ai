@@ -199,6 +199,7 @@ class CameraService:
         telegram_cfg = self.config.get("telegram")
         ha_cfg = self.config.get("home_assistant")
         rules = self.config.get("rules", [])
+        base_interval = self.camera_cfg.get("interval_seconds", 10)
 
         # Classificador comportamental de camera
         from cam.behavior_classifier import classify_camera_behaviors
@@ -349,6 +350,7 @@ class CameraService:
                     "frame_path": frame_path,
                     "frame_id": frame_id,
                     "description": analysis["description"],
+                    "events": [e["event_type"] for e in analysis.get("events", [])],
                     "triggered": triggered,
                     "action_results": action_results,
                     "ts": datetime.now().strftime("%H:%M:%S"),

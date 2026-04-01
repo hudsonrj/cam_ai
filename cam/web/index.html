@@ -926,7 +926,7 @@ const state = {
   activeCameraId: 'main',
   ws:             null,
   wsReady:        false,
-  ttsEnabled:     true,
+  ttsEnabled:     false,
   wakeWordActive: false,
   micListening:   false,
   wakeWordRecognition: null,
@@ -1323,7 +1323,6 @@ function initTtsButton() {
   dom.btnTts.classList.toggle('active', state.ttsEnabled);
   dom.btnTts.addEventListener('click', () => {
     state.ttsEnabled = !state.ttsEnabled;
-    dom.btnTts.textContent = state.ttsEnabled ? '🔊 Voz' : '🔇 Voz';
     dom.btnTts.classList.toggle('active', state.ttsEnabled);
     if (!state.ttsEnabled) window.speechSynthesis?.cancel();
   });
@@ -1400,8 +1399,11 @@ function stopMicListening() {
    ════════════════════════════════════════════════ */
 function initWakeWordButton() {
   if (!SpeechRecognition) {
-    dom.btnWakeWord.disabled = true;
-    dom.btnWakeWord.title = 'Não suportado neste navegador';
+    dom.btnWakeWord.addEventListener('click', () => {
+      dom.modalTitle.textContent = 'Wake word indisponivel';
+      dom.modalBody.innerHTML = '<p style="line-height:1.7">Reconhecimento de voz continuo nao e suportado neste navegador ou protocolo.<br><br>Use o Google Chrome acessando via <strong>localhost</strong> ou <strong>HTTPS</strong>.</p>';
+      openModal();
+    });
     return;
   }
   dom.btnWakeWord.addEventListener('click', toggleWakeWord);
@@ -1783,14 +1785,10 @@ function showWelcome() {
    ════════════════════════════════════════════════ */
 async function init() {
   startClock();
-  initModal();
-  initChatInput();
-  initTtsButton();
-  initMicButton();
-  initWakeWordButton();
-  initPatternsButton();
-  initInsights();
-  initAvatar();
+  for (const fn of [initModal, initChatInput, initTtsButton, initMicButton,
+                    initWakeWordButton, initPatternsButton, initInsights, initAvatar]) {
+    try { fn(); } catch (e) { console.error(fn.name, e); }
+  }
 
   showWelcome();
 

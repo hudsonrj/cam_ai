@@ -61,13 +61,15 @@ async def _startup() -> None:
         asyncio.create_task(_bridge_sync_queue(sync_q))
 
 
+_SKIP_TYPES = {"live_feed"}  # tipos de alto volume que o browser não usa
+
 async def _bridge_sync_queue(sync_q) -> None:
     """Transfere eventos da queue de threads para a asyncio queue."""
     loop = asyncio.get_event_loop()
     while True:
         try:
             item = await loop.run_in_executor(None, _blocking_get, sync_q)
-            if item and _web_queue:
+            if item and _web_queue and item.get("type") not in _SKIP_TYPES:
                 await _web_queue.put(item)
         except Exception:
             await asyncio.sleep(0.1)

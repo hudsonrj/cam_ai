@@ -116,8 +116,8 @@ class AmbientTranscriber:
             return
 
         duration_s = (chunk.chunk_end - chunk.chunk_start).total_seconds()
-        chunk_start_iso = chunk.chunk_start.isoformat(timespec="seconds")
-        chunk_end_iso   = chunk.chunk_end.isoformat(timespec="seconds")
+        chunk_start_iso = chunk.chunk_start.strftime("%Y-%m-%d %H:%M:%S")
+        chunk_end_iso   = chunk.chunk_end.strftime("%Y-%m-%d %H:%M:%S")
 
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
         try:
