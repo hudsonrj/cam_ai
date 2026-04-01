@@ -3,7 +3,7 @@ import base64
 import json
 import httpx
 
-SYSTEM_PROMPT = """Voce e um sistema de monitoramento de segurança residencial.
+SYSTEM_PROMPT_BASE = """Voce e um sistema de monitoramento de segurança residencial.
 Analise a imagem e retorne um JSON com dois campos:
 - "description": string com descricao objetiva da cena em portugues
 - "events": lista de objetos com "event_type" e "confidence" (0.0 a 1.0)
@@ -14,24 +14,15 @@ Tipos de eventos possiveis:
 - person_leaving_house: pessoa saindo de casa
 - person_away_from_pc: pessoa se afastando do computador
 - door_open: porta visivelmente aberta
-- owner_recognized: a pessoa visivel na cena E a mesma pessoa da foto de referencia fornecida
-- unknown_person_detected: ha uma pessoa visivel na cena que NAO E a pessoa da foto de referencia
-
+{extra_events}
 Retorne APENAS o JSON, sem texto adicional."""
 
-SYSTEM_PROMPT_NO_REF = """Voce e um sistema de monitoramento de segurança residencial.
-Analise a imagem e retorne um JSON com dois campos:
-- "description": string com descricao objetiva da cena em portugues
-- "events": lista de objetos com "event_type" e "confidence" (0.0 a 1.0)
-
-Tipos de eventos possiveis:
-- person_sitting_at_pc: pessoa sentada na cadeira gamer proxima ao computador
-- person_approaching: pessoa se aproximando do computador
-- person_leaving_house: pessoa saindo de casa
-- person_away_from_pc: pessoa se afastando do computador
-- door_open: porta visivelmente aberta
-
-Retorne APENAS o JSON, sem texto adicional."""
+# Mantém aliases para compatibilidade com imports existentes
+SYSTEM_PROMPT = SYSTEM_PROMPT_BASE.format(extra_events=(
+    "- owner_recognized: a pessoa visivel na cena E a mesma pessoa da foto de referencia fornecida\n"
+    "- unknown_person_detected: ha uma pessoa visivel na cena que NAO E a pessoa da foto de referencia\n"
+))
+SYSTEM_PROMPT_NO_REF = SYSTEM_PROMPT_BASE.format(extra_events="")
 
 
 def analyze_frame(
@@ -40,19 +31,42 @@ def analyze_frame(
     model_id: str,
     bearer_token: str,
     owner_jpeg: bytes | None = None,
+    known_people: list[dict] | None = None,
 ) -> dict:
+    """
+    known_people: lista de {"name": str, "jpeg": bytes} para reconhecimento de visitantes.
+    """
     image_b64 = base64.standard_b64encode(jpeg_bytes).decode("utf-8")
 
+    all_people = []
     if owner_jpeg:
-        owner_b64 = base64.standard_b64encode(owner_jpeg).decode("utf-8")
-        content = [
-            {"type": "text", "text": "FOTO DE REFERENCIA DO MORADOR (para identificacao):"},
-            {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": owner_b64}},
-            {"type": "text", "text": "IMAGEM ATUAL DA CAMERA:"},
-            {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_b64}},
-            {"type": "text", "text": "Compare as imagens e analise a cena atual."},
-        ]
-        system = SYSTEM_PROMPT
+        all_people.append({"name": "morador (Hudson)", "jpeg": owner_jpeg})
+    if known_people:
+        all_people.extend(known_people)
+
+    if all_people:
+        names = ", ".join(p["name"] for p in all_people)
+        extra = (
+            f"- owner_recognized: a pessoa visivel E o morador Hudson\n"
+            f"- unknown_person_detected: ha pessoa visivel que NAO E nenhuma das referencias\n"
+            + "".join(
+                f"- visitor_{p['name'].lower().replace(' ', '_')}_recognized:"
+                f" a pessoa visivel e {p['name']}\n"
+                for p in all_people if p["name"] != "morador (Hudson)"
+            )
+        )
+        system = SYSTEM_PROMPT_BASE.format(extra_events=extra)
+
+        content: list[dict] = []
+        for p in all_people:
+            b64 = base64.standard_b64encode(p["jpeg"]).decode()
+            content.append({"type": "text", "text": f"FOTO DE REFERENCIA — {p['name']}:"})
+            content.append({"type": "image", "source": {
+                "type": "base64", "media_type": "image/jpeg", "data": b64}})
+        content.append({"type": "text", "text": "IMAGEM ATUAL DA CAMERA:"})
+        content.append({"type": "image", "source": {
+            "type": "base64", "media_type": "image/jpeg", "data": image_b64}})
+        content.append({"type": "text", "text": f"Compare com as {len(all_people)} foto(s) de referencia e analise."})
     else:
         content = [
             {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_b64}},

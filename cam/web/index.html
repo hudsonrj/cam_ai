@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CAM AI — Monitoramento</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1117;
+      --panel:     #161b22;
+      --border:    #30363d;
+      --accent:    #58a6ff;
+      --text:      #c9d1d9;
+      --text-dim:  #8b949e;
+      --blue-dark: #1f3a5f;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      overflow: hidden;
+    }
+
+    /* ── HEADER ── */
+    #header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+      height: 48px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #header .logo {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    #status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #3fb950;
+      flex-shrink: 0;
+    }
+    #status-dot.live { animation: pulse 1.6s ease-in-out infinite; }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(63,185,80,.6); }
+      50%       { box-shadow: 0 0 0 5px rgba(63,185,80,0); }
+    }
+    #status-dot.offline { background: #6e7681; animation: none; }
+
+    #status-label { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+
+    #time-display {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    #camera-tabs {
+      display: flex;
+      gap: 4px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+    }
+    .cam-tab {
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s, color .15s;
+    }
+    .cam-tab.active, .cam-tab:hover {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .spacer { flex: 1; }
+
+    .hdr-btn {
+      padding: 5px 12px;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s;
+    }
+    .hdr-btn:hover { background: var(--border); }
+    .hdr-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ── LAYOUT ── */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    #main-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      flex: 1;
+      overflow: hidden;
+      gap: 0;
+    }
+
+    /* ── LEFT: VIDEO ── */
+    #video-panel {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    #feed-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      min-height: 0;
+      position: relative;
+    }
+
+    #feed-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    #feed-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-dim);
+      gap: 8px;
+      font-size: 13px;
+    }
+    #feed-placeholder .icon { font-size: 40px; opacity: .4; }
+
+    #video-meta {
+      padding: 8px 14px;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+    #video-meta .meta-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      font-size: 12px;
+    }
+    #video-meta .meta-label { color: var(--text-dim); flex-shrink: 0; }
+    #video-meta .meta-val   { color: var(--text); }
+
+    /* ── RIGHT COLUMN ── */
+    #right-col {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── EVENTS ── */
+    #events-panel {
+      flex: 0 0 auto;
+      max-height: 45%;
+      display: flex;
+      flex-direction: column;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-title {
+      padding: 8px 14px 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      flex-shrink: 0;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+    }
+
+    #events-list {
+      overflow-y: auto;
+      flex: 1;
+      background: var(--panel);
+    }
+
+    .event-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--border);
+      border-left: 3px solid transparent;
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .event-item:hover { background: rgba(255,255,255,.04); }
+    .event-item .ev-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      flex-shrink: 0; margin-top: 5px;
+    }
+    .event-item .ev-body { flex: 1; min-width: 0; }
+    .event-item .ev-time { font-size: 11px; color: var(--text-dim); }
+    .event-item .ev-tag  { font-size: 12px; font-weight: 600; margin-bottom: 1px; }
+    .event-item .ev-desc { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .event-item .ev-cam  { font-size: 10px; color: var(--text-dim); margin-top: 1px; }
+
+    /* ── CHAT ── */
+    #chat-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .bubble {
+      max-width: 85%;
+      padding: 7px 11px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .bubble.bot {
+      align-self: flex-start;
+      background: #1a2535;
+      color: var(--accent);
+      border-bottom-left-radius: 3px;
+    }
+    .bubble.user {
+      align-self: flex-end;
+      background: var(--blue-dark);
+      color: #fff;
+      border-bottom-right-radius: 3px;
+    }
+    .bubble.proactive {
+      align-self: flex-start;
+      background: #1a2a1a;
+      color: #3fb950;
+      border-left: 2px solid #3fb950;
+      border-bottom-left-radius: 3px;
+      font-style: italic;
+    }
+    .bubble .bubble-label {
+      font-size: 10px;
+      opacity: .6;
+      margin-bottom: 3px;
+      font-weight: 600;
+    }
+
+    #chat-input-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      padding: 8px 10px;
+      border-top: 1px solid var(--border);
+      background: var(--panel);
+      flex-shrink: 0;
+    }
+
+    #chat-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 10px;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      resize: none;
+      min-height: 36px;
+      max-height: 100px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    #chat-input:focus { border-color: var(--accent); }
+    #chat-input::placeholder { color: var(--text-dim); }
+
+    #btn-mic {
+      width: 34px; height: 34px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background .15s, border-color .15s;
+    }
+    #btn-mic.listening {
+      background: rgba(255,68,68,.15);
+      border-color: #FF4444;
+      color: #FF4444;
+      animation: mic-pulse .8s ease-in-out infinite;
+    }
+    @keyframes mic-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,68,68,.4); }
+      50%       { box-shadow: 0 0 0 4px rgba(255,68,68,0); }
+    }
+
+    #btn-send {
+      padding: 7px 14px;
+      border-radius: 6px;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      height: 34px;
+      transition: opacity .15s;
+    }
+    #btn-send:hover { opacity: .85; }
+
+    /* ── MODAL ── */
+    #modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    #modal-overlay.open { display: flex; }
+
+    #modal-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      max-width: 700px;
+      width: 90vw;
+      max-height: 85vh;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    #modal-close {
+      position: absolute;
+      top: 12px; right: 14px;
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 20px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    #modal-close:hover { color: var(--text); }
+
+    #modal-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 14px;
+      padding-right: 24px;
+    }
+
+    #modal-body { color: var(--text); font-size: 13px; line-height: 1.6; }
+    #modal-body img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin-top: 10px;
+      display: block;
+    }
+    #modal-body pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: var(--bg);
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+    /* ── THINKING indicator ── */
+    .bubble.thinking .dots::after {
+      content: '...';
+      animation: dots 1.2s steps(4, end) infinite;
+    }
+    @keyframes dots {
+      0%   { content: ''; }
+      25%  { content: '.'; }
+      50%  { content: '..'; }
+      75%  { content: '...'; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- HEADER -->
+  <header id="header">
+    <span class="logo">🎥 CAM AI</span>
+    <span id="status-dot" class="offline"></span>
+    <span id="status-label">Conectando…</span>
+    <span id="time-display">--:--</span>
+    <div id="camera-tabs"></div>
+    <span class="spacer"></span>
+    <button class="hdr-btn" id="btn-wake-word" title="Ativar escuta contínua">🎙️ Wake word</button>
+    <button class="hdr-btn" id="btn-tts" title="Fala em voz alta">🔊 Voz</button>
+    <button class="hdr-btn" id="btn-patterns" title="Ver padrões detectados">Padrões</button>
+  </header>
+
+  <!-- MAIN GRID -->
+  <div id="main-grid">
+
+    <!-- LEFT: VIDEO -->
+    <div id="video-panel">
+      <div id="feed-wrapper">
+        <div id="feed-placeholder">
+          <span class="icon">📷</span>
+          <span>Aguardando câmera…</span>
+        </div>
+        <img id="feed-img" src="" alt="Live feed" style="display:none;">
+      </div>
+      <div id="video-meta">
+        <div class="meta-row">
+          <span class="meta-label">Última análise:</span>
+          <span class="meta-val" id="meta-time">—</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Descrição:</span>
+          <span class="meta-val" id="meta-desc">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div id="right-col">
+
+      <!-- EVENTS -->
+      <div id="events-panel">
+        <div class="panel-title">Detecções</div>
+        <div id="events-list"></div>
+      </div>
+
+      <!-- CHAT -->
+      <div id="chat-panel">
+        <div class="panel-title">Assistente</div>
+        <div id="chat-messages"></div>
+        <div id="chat-input-row">
+          <textarea id="chat-input" rows="1" placeholder="Escreva aqui…"></textarea>
+          <button id="btn-mic" title="Microfone">🎤</button>
+          <button id="btn-send">Enviar</button>
+        </div>
+      </div>
+
+    </div><!-- /right-col -->
+  </div><!-- /main-grid -->
+</div><!-- /app -->
+
+<!-- MODAL -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <button id="modal-close" aria-label="Fechar">&times;</button>
+    <div id="modal-title"></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ════════════════════════════════════════════════
+   CONFIG
+   ════════════════════════════════════════════════ */
+const API_BASE = 'http://localhost:8765';
+const WS_URL   = 'ws://localhost:8765/ws';
+const RECONNECT_DELAY = 3000;
+
+/* ════════════════════════════════════════════════
+   STATE
+   ════════════════════════════════════════════════ */
+const state = {
+  cameras:        [],         // [{id, name}]
+  activeCameraId: 'main',
+  ws:             null,
+  wsReady:        false,
+  ttsEnabled:     true,
+  wakeWordActive: false,
+  micListening:   false,
+  wakeWordRecognition: null,
+  chatRecognition:     null,
+  thinkingBubble: null,
+};
+
+/* ════════════════════════════════════════════════
+   DOM REFS
+   ════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+const dom = {
+  statusDot:    $('status-dot'),
+  statusLabel:  $('status-label'),
+  timeDisplay:  $('time-display'),
+  cameraTabs:   $('camera-tabs'),
+  feedImg:      $('feed-img'),
+  feedPH:       $('feed-placeholder'),
+  metaTime:     $('meta-time'),
+  metaDesc:     $('meta-desc'),
+  eventsList:   $('events-list'),
+  chatMessages: $('chat-messages'),
+  chatInput:    $('chat-input'),
+  btnSend:      $('btn-send'),
+  btnMic:       $('btn-mic'),
+  btnTts:       $('btn-tts'),
+  btnWakeWord:  $('btn-wake-word'),
+  btnPatterns:  $('btn-patterns'),
+  modalOverlay: $('modal-overlay'),
+  modalBox:     $('modal-box'),
+  modalClose:   $('modal-close'),
+  modalTitle:   $('modal-title'),
+  modalBody:    $('modal-body'),
+};
+
+/* ════════════════════════════════════════════════
+   CLOCK
+   ════════════════════════════════════════════════ */
+function startClock() {
+  function tick() {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    dom.timeDisplay.textContent = `${hh}:${mm}`;
+  }
+  tick();
+  setInterval(tick, 5000);
+}
+
+/* ════════════════════════════════════════════════
+   EVENT COLOR UTIL
+   ════════════════════════════════════════════════ */
+const EVENT_COLORS = {
+  owner_recognized:        '#00BFFF',
+  person_away_from_pc:     '#FFD700',
+  person_leaving_house:    '#FFD700',
+  unknown_person_detected: '#FF4444',
+};
+
+function eventColor(tag) {
+  return EVENT_COLORS[tag] || '#8b949e';
+}
+
+/* ════════════════════════════════════════════════
+   CAMERA MANAGEMENT
+   ════════════════════════════════════════════════ */
+async function loadCameras() {
+  try {
+    const res = await fetch(`${API_BASE}/api/cameras`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    state.cameras = await res.json();
+  } catch (_) {
+    state.cameras = [{ id: 'main', name: 'MAIN' }];
+  }
+  renderCameraTabs();
+  activateCamera(state.cameras[0]?.id || 'main');
+}
+
+function renderCameraTabs() {
+  dom.cameraTabs.innerHTML = '';
+  state.cameras.forEach(cam => {
+    const btn = document.createElement('button');
+    btn.className = 'cam-tab' + (cam.id === state.activeCameraId ? ' active' : '');
+    btn.textContent = (cam.name || cam.id).toUpperCase();
+    btn.dataset.camId = cam.id;
+    btn.addEventListener('click', () => activateCamera(cam.id));
+    dom.cameraTabs.appendChild(btn);
+  });
+}
+
+function activateCamera(camId) {
+  state.activeCameraId = camId;
+
+  // update tab styles
+  dom.cameraTabs.querySelectorAll('.cam-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.camId === camId);
+  });
+
+  // update stream
+  const streamUrl = `${API_BASE}/stream/${camId}`;
+  dom.feedImg.src = streamUrl;
+  dom.feedImg.style.display = 'block';
+  dom.feedPH.style.display = 'none';
+
+  dom.feedImg.onerror = () => {
+    dom.feedImg.style.display = 'none';
+    dom.feedPH.style.display = 'flex';
+  };
+
+  // re-filter events if needed
+  filterEventsByCamera(camId);
+}
+
+function filterEventsByCamera(camId) {
+  dom.eventsList.querySelectorAll('.event-item').forEach(el => {
+    const match = !camId || el.dataset.cameraId === camId || camId === 'all';
+    el.style.display = match ? '' : 'none';
+  });
+}
+
+/* ════════════════════════════════════════════════
+   WEBSOCKET
+   ════════════════════════════════════════════════ */
+function connectWs() {
+  if (state.ws) {
+    try { state.ws.close(); } catch (_) {}
+  }
+
+  setStatus('offline', 'Conectando…');
+  const ws = new WebSocket(WS_URL);
+  state.ws = ws;
+  state.wsReady = false;
+
+  ws.addEventListener('open', onWsOpen);
+  ws.addEventListener('message', onWsMessage);
+  ws.addEventListener('close', onWsClose);
+  ws.addEventListener('error', onWsError);
+}
+
+function onWsOpen() {
+  state.wsReady = true;
+  setStatus('live', 'Ao vivo');
+}
+
+function onWsMessage(evt) {
+  let msg;
+  try { msg = JSON.parse(evt.data); } catch (_) { return; }
+
+  switch (msg.type) {
+    case 'analysis':  handleAnalysis(msg);  break;
+    case 'live':      /* ping — ignore */   break;
+    case 'chat_reply': handleChatReply(msg); break;
+    case 'proactive': handleProactive(msg); break;
+    case 'patterns':  handlePatterns(msg);  break;
+    default: break;
+  }
+}
+
+function onWsClose() {
+  state.wsReady = false;
+  setStatus('offline', 'Desconectado — reconectando…');
+  setTimeout(connectWs, RECONNECT_DELAY);
+}
+
+function onWsError() {
+  state.wsReady = false;
+  setStatus('offline', 'Erro de conexão');
+}
+
+function wsSend(obj) {
+  if (state.ws && state.wsReady) {
+    state.ws.send(JSON.stringify(obj));
+    return true;
+  }
+  return false;
+}
+
+/* ════════════════════════════════════════════════
+   STATUS INDICATOR
+   ════════════════════════════════════════════════ */
+function setStatus(mode, label) {
+  dom.statusDot.className = mode === 'live' ? 'live' : 'offline';
+  dom.statusLabel.textContent = label;
+}
+
+/* ════════════════════════════════════════════════
+   ANALYSIS HANDLER
+   ════════════════════════════════════════════════ */
+function handleAnalysis(msg) {
+  // update meta bar
+  if (msg.camera_id === state.activeCameraId || !msg.camera_id) {
+    dom.metaTime.textContent = msg.ts || '—';
+    dom.metaDesc.textContent = msg.description || '—';
+  }
+
+  // add events to list
+  const events = msg.events || [];
+  events.forEach(tag => {
+    prependEvent({
+      ts:          msg.ts || '',
+      tag,
+      description: msg.description || '',
+      frame_id:    msg.frame_id,
+      camera_id:   msg.camera_id || state.activeCameraId,
+    });
+  });
+}
+
+/* ════════════════════════════════════════════════
+   EVENTS LIST
+   ════════════════════════════════════════════════ */
+function prependEvent({ ts, tag, description, frame_id, camera_id }) {
+  const color = eventColor(tag);
+
+  const item = document.createElement('div');
+  item.className = 'event-item';
+  item.dataset.frameId  = frame_id || '';
+  item.dataset.cameraId = camera_id || '';
+  item.style.borderLeftColor = color;
+
+  if (camera_id !== state.activeCameraId) {
+    item.style.display = 'none';
+  }
+
+  const label = tag.replace(/_/g, ' ');
+
+  item.innerHTML = `
+    <span class="ev-dot" style="background:${color}"></span>
+    <div class="ev-body">
+      <div style="display:flex;align-items:baseline;gap:6px;">
+        <span class="ev-tag" style="color:${color}">${escHtml(label)}</span>
+        <span class="ev-time">${escHtml(ts)}</span>
+      </div>
+      <div class="ev-desc">${escHtml(description)}</div>
+      ${camera_id ? `<div class="ev-cam">📷 ${escHtml(camera_id)}</div>` : ''}
+    </div>`;
+
+  item.addEventListener('click', () => openSnapshotModal(frame_id, tag, ts, description));
+
+  dom.eventsList.prepend(item);
+}
+
+function openSnapshotModal(frame_id, tag, ts, description) {
+  dom.modalTitle.textContent = `${tag.replace(/_/g, ' ')} — ${ts}`;
+  dom.modalBody.innerHTML = `<p>${escHtml(description)}</p>`;
+
+  if (frame_id) {
+    const img = document.createElement('img');
+    img.src = `${API_BASE}/api/snapshot/${frame_id}`;
+    img.alt = 'Snapshot';
+    img.onerror = () => { img.style.display = 'none'; };
+    dom.modalBody.appendChild(img);
+  }
+
+  openModal();
+}
+
+/* ════════════════════════════════════════════════
+   HISTORY
+   ════════════════════════════════════════════════ */
+async function loadHistory() {
+  try {
+    const res = await fetch(`${API_BASE}/api/history?limit=50`);
+    if (!res.ok) return;
+    const items = await res.json();
+    // render oldest-first so prepend shows newest at top after
+    [...items].reverse().forEach(item => {
+      (item.events || []).forEach(tag => {
+        prependEvent({
+          ts:          item.ts || '',
+          tag,
+          description: item.description || '',
+          frame_id:    item.id,
+          camera_id:   item.camera_id || state.activeCameraId,
+        });
+      });
+    });
+  } catch (_) {}
+}
+
+/* ════════════════════════════════════════════════
+   CHAT
+   ════════════════════════════════════════════════ */
+function handleChatReply(msg) {
+  // remove thinking bubble
+  if (state.thinkingBubble) {
+    state.thinkingBubble.remove();
+    state.thinkingBubble = null;
+  }
+
+  if (msg.thinking) {
+    state.thinkingBubble = appendBubble('bot', '…', true);
+    return;
+  }
+
+  const text = msg.text || '';
+  appendBubble('bot', text);
+  ttsSpeak(text);
+}
+
+function handleProactive(msg) {
+  const text = msg.text || '';
+  appendBubble('proactive', text, false, '🔔 Assistente');
+  ttsSpeak(text);
+}
+
+function sendChat(text) {
+  if (!text.trim()) return;
+  appendBubble('user', text);
+  wsSend({ type: 'chat', text, camera_id: state.activeCameraId });
+
+  // show thinking indicator
+  state.thinkingBubble = appendBubble('bot', '', true);
+}
+
+function appendBubble(role, text, isThinking = false, overrideLabel = null) {
+  const wrap = document.createElement('div');
+  wrap.className = `bubble ${role}${isThinking ? ' thinking' : ''}`;
+
+  const labels = { bot: 'CAM', user: 'Você', proactive: overrideLabel || '🔔' };
+  const label = overrideLabel !== null ? overrideLabel : labels[role] || 'CAM';
+
+  if (isThinking) {
+    wrap.innerHTML = `<div class="bubble-label">${escHtml(label)}</div><span class="dots"></span>`;
+  } else {
+    wrap.innerHTML = `<div class="bubble-label">${escHtml(label)}</div>${escHtml(text).replace(/\n/g, '<br>')}`;
+  }
+
+  dom.chatMessages.appendChild(wrap);
+  dom.chatMessages.scrollTop = dom.chatMessages.scrollHeight;
+  return wrap;
+}
+
+function handlePatterns(msg) {
+  dom.modalTitle.textContent = 'Padrões Detectados';
+  dom.modalBody.innerHTML = `<pre>${escHtml(msg.text || 'Sem dados.')}</pre>`;
+  openModal();
+}
+
+/* ════════════════════════════════════════════════
+   CHAT INPUT WIRING
+   ════════════════════════════════════════════════ */
+function initChatInput() {
+  dom.btnSend.addEventListener('click', () => {
+    const text = dom.chatInput.value.trim();
+    if (!text) return;
+    dom.chatInput.value = '';
+    resizeChatInput();
+    sendChat(text);
+  });
+
+  dom.chatInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      dom.btnSend.click();
+    }
+  });
+
+  dom.chatInput.addEventListener('input', resizeChatInput);
+}
+
+function resizeChatInput() {
+  dom.chatInput.style.height = 'auto';
+  dom.chatInput.style.height = Math.min(dom.chatInput.scrollHeight, 100) + 'px';
+}
+
+/* ════════════════════════════════════════════════
+   TTS
+   ════════════════════════════════════════════════ */
+function ttsSpeak(text) {
+  if (!state.ttsEnabled) return;
+  if (!window.speechSynthesis || !text) return;
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'pt-BR';
+  utter.rate = 1.0;
+  // try to pick a pt-BR voice
+  const voices = window.speechSynthesis.getVoices();
+  const ptVoice = voices.find(v => v.lang.startsWith('pt'));
+  if (ptVoice) utter.voice = ptVoice;
+  window.speechSynthesis.speak(utter);
+}
+
+function initTtsButton() {
+  dom.btnTts.classList.toggle('active', state.ttsEnabled);
+  dom.btnTts.addEventListener('click', () => {
+    state.ttsEnabled = !state.ttsEnabled;
+    dom.btnTts.textContent = state.ttsEnabled ? '🔊 Voz' : '🔇 Voz';
+    dom.btnTts.classList.toggle('active', state.ttsEnabled);
+    if (!state.ttsEnabled) window.speechSynthesis?.cancel();
+  });
+}
+
+/* ════════════════════════════════════════════════
+   SPEECH RECOGNITION — HELPERS
+   ════════════════════════════════════════════════ */
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+function createRecognition(opts = {}) {
+  if (!SpeechRecognition) return null;
+  const r = new SpeechRecognition();
+  r.lang = 'pt-BR';
+  r.interimResults = opts.interim || false;
+  r.continuous = opts.continuous || false;
+  return r;
+}
+
+/* ════════════════════════════════════════════════
+   MIC BUTTON (single-shot recognition)
+   ════════════════════════════════════════════════ */
+function initMicButton() {
+  if (!SpeechRecognition) {
+    dom.btnMic.title = 'Reconhecimento de voz não suportado';
+    dom.btnMic.disabled = true;
+    return;
+  }
+
+  dom.btnMic.addEventListener('click', toggleMicListening);
+}
+
+function toggleMicListening() {
+  if (state.micListening) {
+    stopMicListening();
+  } else {
+    startMicListening();
+  }
+}
+
+function startMicListening() {
+  if (state.chatRecognition) {
+    try { state.chatRecognition.abort(); } catch (_) {}
+  }
+
+  const rec = createRecognition({ interim: false, continuous: false });
+  state.chatRecognition = rec;
+  state.micListening = true;
+  dom.btnMic.classList.add('listening');
+
+  rec.onresult = e => {
+    const transcript = e.results[0][0].transcript;
+    dom.chatInput.value = transcript;
+    resizeChatInput();
+    dom.btnSend.click();
+  };
+
+  rec.onerror = () => stopMicListening();
+  rec.onend   = () => stopMicListening();
+  rec.start();
+}
+
+function stopMicListening() {
+  state.micListening = false;
+  dom.btnMic.classList.remove('listening');
+  if (state.chatRecognition) {
+    try { state.chatRecognition.abort(); } catch (_) {}
+    state.chatRecognition = null;
+  }
+}
+
+/* ════════════════════════════════════════════════
+   WAKE WORD  ("ei cam" / "hey cam")
+   ════════════════════════════════════════════════ */
+function initWakeWordButton() {
+  if (!SpeechRecognition) {
+    dom.btnWakeWord.disabled = true;
+    dom.btnWakeWord.title = 'Não suportado neste navegador';
+    return;
+  }
+  dom.btnWakeWord.addEventListener('click', toggleWakeWord);
+}
+
+function toggleWakeWord() {
+  if (state.wakeWordActive) {
+    stopWakeWord();
+  } else {
+    startWakeWord();
+  }
+}
+
+function startWakeWord() {
+  state.wakeWordActive = true;
+  dom.btnWakeWord.classList.add('active');
+
+  const rec = createRecognition({ interim: false, continuous: true });
+  state.wakeWordRecognition = rec;
+
+  rec.onresult = e => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (!e.results[i].isFinal) continue;
+      const t = e.results[i][0].transcript.toLowerCase().trim();
+      if (t.includes('ei cam') || t.includes('hey cam') || t.includes('ei can') || t.includes('ey cam')) {
+        handleWakeWord();
+        return;
+      }
+    }
+  };
+
+  rec.onerror = evt => {
+    if (evt.error === 'no-speech') return; // keep going
+    stopWakeWord();
+  };
+
+  // restart on end if still active
+  rec.onend = () => {
+    if (state.wakeWordActive) {
+      try { rec.start(); } catch (_) {}
+    }
+  };
+
+  try { rec.start(); } catch (_) { stopWakeWord(); }
+}
+
+function stopWakeWord() {
+  state.wakeWordActive = false;
+  dom.btnWakeWord.classList.remove('active');
+  if (state.wakeWordRecognition) {
+    try { state.wakeWordRecognition.abort(); } catch (_) {}
+    state.wakeWordRecognition = null;
+  }
+}
+
+function handleWakeWord() {
+  // brief visual cue — focus input, then listen for follow-up question
+  dom.chatInput.focus();
+  dom.chatInput.placeholder = '🎤 Ouvindo pergunta…';
+
+  const rec = createRecognition({ interim: false, continuous: false });
+  dom.btnMic.classList.add('listening');
+
+  rec.onresult = e => {
+    const transcript = e.results[0][0].transcript;
+    dom.chatInput.value = transcript;
+    dom.chatInput.placeholder = 'Escreva aqui…';
+    dom.btnMic.classList.remove('listening');
+    resizeChatInput();
+    dom.btnSend.click();
+  };
+
+  rec.onerror = () => {
+    dom.chatInput.placeholder = 'Escreva aqui…';
+    dom.btnMic.classList.remove('listening');
+  };
+  rec.onend = () => {
+    dom.chatInput.placeholder = 'Escreva aqui…';
+    dom.btnMic.classList.remove('listening');
+  };
+
+  try { rec.start(); } catch (_) {}
+}
+
+/* ════════════════════════════════════════════════
+   PATTERNS BUTTON
+   ════════════════════════════════════════════════ */
+function initPatternsButton() {
+  dom.btnPatterns.addEventListener('click', () => {
+    if (wsSend({ type: 'get_patterns' })) {
+      dom.modalTitle.textContent = 'Padrões Detectados';
+      dom.modalBody.innerHTML = '<p style="color:var(--text-dim)">Aguardando resposta…</p>';
+      openModal();
+    } else {
+      dom.modalTitle.textContent = 'Padrões';
+      dom.modalBody.innerHTML = '<p style="color:#FF4444">WebSocket não conectado.</p>';
+      openModal();
+    }
+  });
+}
+
+/* ════════════════════════════════════════════════
+   MODAL
+   ════════════════════════════════════════════════ */
+function openModal() {
+  dom.modalOverlay.classList.add('open');
+}
+
+function closeModal() {
+  dom.modalOverlay.classList.remove('open');
+}
+
+function initModal() {
+  dom.modalClose.addEventListener('click', closeModal);
+  dom.modalOverlay.addEventListener('click', e => {
+    if (e.target === dom.modalOverlay) closeModal();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+  });
+}
+
+/* ════════════════════════════════════════════════
+   UTILITY
+   ════════════════════════════════════════════════ */
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/* ════════════════════════════════════════════════
+   INIT — WELCOME MESSAGE
+   ════════════════════════════════════════════════ */
+function showWelcome() {
+  appendBubble('bot', 'Olá! Estou pronto para monitorar. Pergunte-me o que estou vendo ou peça um resumo.');
+}
+
+/* ════════════════════════════════════════════════
+   BOOTSTRAP
+   ════════════════════════════════════════════════ */
+async function init() {
+  startClock();
+  initModal();
+  initChatInput();
+  initTtsButton();
+  initMicButton();
+  initWakeWordButton();
+  initPatternsButton();
+
+  showWelcome();
+
+  // load cameras first, then history
+  await loadCameras();
+  await loadHistory();
+
+  // connect websocket
+  connectWs();
+
+  // preload TTS voices
+  if (window.speechSynthesis) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', () => {});
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

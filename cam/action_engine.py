@@ -11,6 +11,17 @@ _last_agenda_announced: datetime | None = None
 _owner_away_since: datetime | None = None
 AWAY_THRESHOLD_MIN = 30
 
+# Cooldown por tipo de evento para alertas Telegram
+_telegram_last_sent: dict[str, datetime] = {}
+
+
+def _telegram_cooldown_ok(event_type: str, cooldown_min: float) -> bool:
+    """Retorna True se o cooldown para este tipo de evento já passou."""
+    last = _telegram_last_sent.get(event_type)
+    if last is None:
+        return True
+    return (datetime.now() - last).total_seconds() / 60 >= cooldown_min
+
 
 def record_owner_away() -> None:
     """Chame quando owner sair do local."""
@@ -190,8 +201,15 @@ def execute_actions(
                     result.update({"payload": cmd, "status": status})
 
                 elif action_type == "telegram" and telegram_cfg:
-                    res = _run_telegram(action, event.get("event_type", ""), saved_frame_path, telegram_cfg)
-                    result.update(res)
+                    cooldown = telegram_cfg.get("cooldown_minutes", 10)
+                    ev_type = event.get("event_type", "")
+                    if _telegram_cooldown_ok(ev_type, cooldown):
+                        res = _run_telegram(action, ev_type, saved_frame_path, telegram_cfg)
+                        if res["status"] == "success":
+                            _telegram_last_sent[ev_type] = datetime.now()
+                        result.update(res)
+                    else:
+                        result.update({"payload": "cooldown ativo", "status": "skipped"})
 
                 else:
                     result.update({"payload": None, "status": "skipped"})

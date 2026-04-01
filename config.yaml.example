@@ -1,25 +1,99 @@
-camera:
-  host: 192.168.X.X
-  user: seu_usuario
-  password: "sua_senha"
-  rtsp_path: /stream1
-  interval_seconds: 5
+# ──────────────────────────────────────────────────────────────────────────────
+# CAM AI — config.yaml.example
+# Copie este arquivo para config.yaml e preencha os valores.
+# ──────────────────────────────────────────────────────────────────────────────
 
-audio:
-  device: 2  # índice do dispositivo de microfone (sounddevice)
+# ── Câmeras ───────────────────────────────────────────────────────────────────
+# Suporte a múltiplas câmeras. Cada câmera gera um stream /stream/<id> no web.
+cameras:
+  - id: main
+    name: "Sala Principal"
+    host: 192.168.1.100
+    user: admin
+    password: "sua_senha"
+    rtsp_path: /stream1
+    interval_seconds: 10   # intervalo entre análises de IA (segundos)
 
+  # Adicione mais câmeras conforme necessário:
+  # - id: porta
+  #   name: "Porta de Entrada"
+  #   host: 192.168.1.101
+  #   user: admin
+  #   password: "sua_senha"
+  #   rtsp_path: /stream1
+  #   interval_seconds: 15
+
+# ── Bedrock / Claude ──────────────────────────────────────────────────────────
 bedrock:
   region: us-east-1
   model_id: us.anthropic.claude-sonnet-4-6
 
+# ── Modo noturno (schedule) ───────────────────────────────────────────────────
+# Define intervalos de análise diferentes por horário.
+# Útil para reduzir uso da API durante a madrugada.
+schedule:
+  - start: "22:00"
+    end: "07:00"
+    interval_seconds: 60   # analisa a cada 1 minuto durante a noite
+
+# ── Áudio (microfone local) ───────────────────────────────────────────────────
+audio:
+  device: 0   # índice do dispositivo sounddevice (python -m sounddevice para listar)
+
+# ── Reconhecimento de pessoas ─────────────────────────────────────────────────
+# Foto do morador principal para reconhecimento owner_recognized.
 owner_photo: data/owner.jpg
 
+# Visitantes conhecidos (fotos de referência para visitor_<name>_recognized).
+known_people:
+  - name: "Maria"
+    photo: data/maria.jpg
+  # - name: "João"
+  #   photo: data/joao.jpg
+
+# ── Modo proativo ─────────────────────────────────────────────────────────────
+# Monitora tempo contínuo sentado no PC e envia alerta de pausa.
+proactive:
+  enabled: true
+  threshold_minutes: 90   # alerta após 90 minutos contínuos no PC
+
+# ── Alertas Telegram ──────────────────────────────────────────────────────────
 telegram:
   bot_token: "SEU_BOT_TOKEN"
   chat_id: "SEU_CHAT_ID"
+  cooldown_minutes: 10    # intervalo mínimo entre alertas do mesmo tipo
 
+# ── Dashboard web ─────────────────────────────────────────────────────────────
+web:
+  host: "0.0.0.0"
+  port: 8080
+
+# ── Regras de ação ────────────────────────────────────────────────────────────
+# Cada regra vincula um evento detectado a uma ou mais ações.
 rules:
   - event: owner_recognized
     actions:
       - type: announce_agenda
         dashboard_url: "http://127.0.0.1:8888"
+
+  - event: unknown_person_detected
+    actions:
+      - type: telegram
+        message: "Pessoa desconhecida detectada na câmera!"
+      - type: tts
+        message: "Alerta: pessoa desconhecida detectada."
+
+  - event: door_open
+    actions:
+      - type: telegram
+        message: "Porta aberta detectada."
+
+  # Exemplos adicionais:
+  # - event: person_leaving_house
+  #   actions:
+  #     - type: telegram
+  #       message: "Morador saiu de casa."
+  #
+  # - event: person_sitting_at_pc
+  #   actions:
+  #     - type: save_frame

@@ -1,19 +1,19 @@
 # main.py
 import queue
 import sys
-import tkinter as tk
-
-from cam.service import CameraService
 
 
 def cmd_start():
+    import tkinter as tk
+    from cam.service import load_config, MultiCameraService
+    from cam.gui import CameraGUI
+
+    cfg = load_config()
     gui_queue: queue.Queue = queue.Queue(maxsize=10)
-    service = CameraService(gui_queue=gui_queue)
+    service = MultiCameraService(cfg, gui_queue=gui_queue)
     service.start()
 
     root = tk.Tk()
-
-    from cam.gui import CameraGUI
     CameraGUI(root, service, gui_queue)
 
     def on_close():
@@ -24,26 +24,44 @@ def cmd_start():
     root.mainloop()
 
 
+def cmd_web():
+    import uvicorn
+    from cam.service import load_config, MultiCameraService
+    from cam.web_server import app, set_service
+
+    cfg = load_config()
+    service = MultiCameraService(cfg)
+    service.start()
+    set_service(service)
+
+    host = cfg.get("web", {}).get("host", "0.0.0.0")
+    port = cfg.get("web", {}).get("port", 8080)
+    print(f"CAM AI Web Dashboard: http://localhost:{port}")
+    uvicorn.run(app, host=host, port=port)
+
+
 def cmd_stop():
     print("O servico encerra quando a janela GUI for fechada ou o botao Stop for clicado.")
     print("Para forcar encerramento: feche a janela GUI ou pressione Ctrl+C.")
 
 
 def cmd_status():
-    print("Use 'python main.py start' para iniciar o monitor.")
-    print("O servico roda enquanto a janela GUI estiver aberta.")
+    print("Use 'python main.py start' para iniciar o monitor (GUI).")
+    print("Use 'python main.py web'   para iniciar o dashboard web.")
 
 
 def main():
     command = sys.argv[1] if len(sys.argv) >= 2 else "start"
     if command == "start":
         cmd_start()
+    elif command == "web":
+        cmd_web()
     elif command == "stop":
         cmd_stop()
     elif command == "status":
         cmd_status()
     else:
-        print("Uso: python main.py [start|stop|status]")
+        print("Uso: python main.py [start|web|stop|status]")
         sys.exit(1)
 
 
