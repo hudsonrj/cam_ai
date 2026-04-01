@@ -38,12 +38,24 @@ def _is_hallucination(text: str) -> bool:
 class AmbientTranscriber:
     """Consome AudioChunks, transcreve e persiste no banco."""
 
-    def __init__(self, chunk_queue: queue.Queue, db_path: str = "data/cam.db"):
+    def __init__(self, chunk_queue: queue.Queue, db_path: str = "data/cam.db",
+                 bedrock_cfg: dict | None = None, bearer_token: str = ""):
         self.chunk_queue = chunk_queue
         self.db_path = db_path
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._model = None      # lazy: inicializado na primeira transcricao
+
+        # Classificador de audio em lote
+        self._batch_classifier = None
+        if bedrock_cfg and bedrock_cfg.get("model_id"):
+            from cam.behavior_classifier import AudioBatchClassifier
+            self._batch_classifier = AudioBatchClassifier(
+                db_path=db_path,
+                region=bedrock_cfg.get("region", "us-east-1"),
+                model_id=bedrock_cfg["model_id"],
+                bearer_token=bearer_token,
+            )
 
     def start(self) -> None:
         self._stop.clear()
@@ -104,14 +116,16 @@ class AmbientTranscriber:
             return
 
         duration_s = (chunk.chunk_end - chunk.chunk_start).total_seconds()
+        chunk_start_iso = chunk.chunk_start.isoformat(timespec="seconds")
+        chunk_end_iso   = chunk.chunk_end.isoformat(timespec="seconds")
 
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
         try:
             from cam.ambient_store import insert_transcript
             insert_transcript(
                 conn,
-                chunk_start=chunk.chunk_start.isoformat(timespec="seconds"),
-                chunk_end=chunk.chunk_end.isoformat(timespec="seconds"),
+                chunk_start=chunk_start_iso,
+                chunk_end=chunk_end_iso,
                 device_name=chunk.device_name,
                 device_index=chunk.device_index,
                 text=text,
@@ -119,3 +133,9 @@ class AmbientTranscriber:
             )
         finally:
             conn.close()
+
+        # Envia para o classificador de audio em lote
+        if self._batch_classifier:
+            self._batch_classifier.add_transcript(
+                chunk_start_iso, chunk_end_iso, chunk.device_name, text,
+            )

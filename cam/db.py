@@ -53,6 +53,10 @@ def init_db(conn: sqlite3.Connection) -> None:
     from cam.ambient_store import init_ambient_tables
     init_ambient_tables(conn)
 
+    # Inicializa tabelas de comportamento
+    from cam.behavior_store import init_behavior_tables
+    init_behavior_tables(conn)
+
 
 def insert_frame(conn: sqlite3.Connection, frame_path: str, description: str,
                  raw_response: str, camera_id: str = "main") -> int:

@@ -199,6 +199,15 @@ class CameraService:
         telegram_cfg = self.config.get("telegram")
         ha_cfg = self.config.get("home_assistant")
         rules = self.config.get("rules", [])
+
+        # Classificador comportamental de camera
+        from cam.behavior_classifier import classify_camera_behaviors
+        from cam.behavior_store import (
+            insert_behavior_event, upsert_person_profile,
+        )
+        behavior_enabled = self.config.get("behavior", {}).get("enabled", True)
+        behavior_interval = self.config.get("behavior", {}).get("interval_seconds", 60)
+        behavior_ticks = 0.0
         bearer_token = os.environ.get("AWS_BEARER_TOKEN_BEDROCK", "")
 
         # Owner photo
@@ -256,15 +265,57 @@ class CameraService:
                     record_owner_away()
                     self._sitting_since = None
 
-                # Registra visitantes conhecidos
+                # Registra visitantes conhecidos + perfis de pessoas
+                ts_now = datetime.now().isoformat(timespec="seconds")
                 for ev in triggered:
                     if ev["event_type"].startswith("visitor_") and "_recognized" in ev["event_type"]:
                         name = ev["event_type"].replace("visitor_", "").replace("_recognized", "").replace("_", " ")
                         try:
                             from cam.db import upsert_visitor
                             upsert_visitor(conn, name)
+                            upsert_person_profile(conn, name)
+                            insert_behavior_event(conn, ts_now, "camera", "person_seen",
+                                                  person_name=name, camera_id=self.camera_id)
                         except Exception:
                             pass
+                    elif ev["event_type"] == "owner_recognized":
+                        try:
+                            upsert_person_profile(conn, "Hudson", "Hudson")
+                            insert_behavior_event(conn, ts_now, "camera", "person_seen",
+                                                  person_name="Hudson", camera_id=self.camera_id)
+                        except Exception:
+                            pass
+                    elif ev["event_type"] == "unknown_person_detected":
+                        try:
+                            upsert_person_profile(conn, "desconhecido")
+                            insert_behavior_event(conn, ts_now, "camera", "person_seen",
+                                                  person_name="desconhecido", camera_id=self.camera_id)
+                        except Exception:
+                            pass
+
+                # Classificacao comportamental da camera (intervalo proprio)
+                behavior_ticks += base_interval
+                if behavior_enabled and behavior_ticks >= behavior_interval:
+                    behavior_ticks = 0.0
+                    try:
+                        behaviors = classify_camera_behaviors(
+                            jpeg_bytes,
+                            region=bedrock_cfg["region"],
+                            model_id=bedrock_cfg["model_id"],
+                            bearer_token=bearer_token,
+                        )
+                        for b in behaviors:
+                            btype = b.get("type", "")
+                            bconf = b.get("confidence", 1.0)
+                            meta = {k: v for k, v in b.items()
+                                    if k not in ("type", "confidence")}
+                            insert_behavior_event(
+                                conn, ts_now, "camera", btype,
+                                metadata=meta, confidence=bconf,
+                                camera_id=self.camera_id,
+                            )
+                    except Exception:
+                        pass
 
                 # Push automático para Home Assistant (todos os eventos)
                 if ha_cfg and ha_cfg.get("webhook_url"):

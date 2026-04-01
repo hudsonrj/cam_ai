@@ -25,6 +25,7 @@ def cmd_start():
 
 
 def cmd_web():
+    import os
     import queue as _queue
     import uvicorn
     from cam.service import load_config, MultiCameraService
@@ -45,7 +46,13 @@ def cmd_web():
         chunk_queue = _queue.Queue(maxsize=200)
         device_indices = ambient_cfg.get("devices")  # None = todos
         recorder = AmbientRecorder(chunk_queue, device_indices=device_indices)
-        transcriber = AmbientTranscriber(chunk_queue)
+        bedrock_cfg = cfg.get("bedrock", {})
+        bearer_token = os.environ.get("AWS_BEARER_TOKEN_BEDROCK", "")
+        transcriber = AmbientTranscriber(
+            chunk_queue,
+            bedrock_cfg=bedrock_cfg,
+            bearer_token=bearer_token,
+        )
         started = recorder.start()
         transcriber.start()
         set_ambient(recorder, transcriber)

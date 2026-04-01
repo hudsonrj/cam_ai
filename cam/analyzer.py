@@ -3,17 +3,30 @@ import base64
 import json
 import httpx
 
-SYSTEM_PROMPT_BASE = """Voce e um sistema de monitoramento de segurança residencial.
+SYSTEM_PROMPT_BASE = """Voce e um sistema de monitoramento residencial inteligente.
 Analise a imagem e retorne um JSON com dois campos:
-- "description": string com descricao objetiva da cena em portugues
-- "events": lista de objetos com "event_type" e "confidence" (0.0 a 1.0)
+- "description": string com descricao objetiva e detalhada da cena em portugues
+- "events": lista de objetos com "event_type", "confidence" (0.0 a 1.0) e campos opcionais
 
 Tipos de eventos possiveis:
+
+Presenca e movimento:
 - person_sitting_at_pc: pessoa sentada na cadeira gamer proxima ao computador
 - person_approaching: pessoa se aproximando do computador
 - person_leaving_house: pessoa saindo de casa
 - person_away_from_pc: pessoa se afastando do computador
 - door_open: porta visivelmente aberta
+- multiple_people: mais de uma pessoa visivel — adicione "count": N
+
+Comportamento e habitos:
+- drink_water: pessoa bebendo agua (copo, garrafa de agua)
+- drink_other: pessoa bebendo outra bebida — adicione "what": "cafe|refrigerante|suco|etc"
+- eat: pessoa comendo — adicione "what": "descricao do alimento se visivel"
+- phone_call: pessoa ao telefone (celular no ouvido ou headset)
+- meeting_in_person: reuniao presencial com duas ou mais pessoas
+- person_sleeping: pessoa dormindo ou com cabeca apoiada como se dormisse
+- person_exercising: pessoa fazendo exercicio fisico
+
 {extra_events}
 Retorne APENAS o JSON, sem texto adicional."""
 

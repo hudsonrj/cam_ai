@@ -250,6 +250,45 @@ async def search_ambient(q: str, date: str | None = None, limit: int = 20):
     return await run_in_threadpool(_query)
 
 
+@app.get("/api/insights")
+async def get_insights(date: str | None = None, days: int = 1):
+    from datetime import date as _date
+    from cam.behavior_store import get_daily_insights, get_weekly_summary, get_person_profiles
+
+    target_date = date or _date.today().isoformat()
+
+    def _query():
+        conn = sqlite3.connect(_db_path, check_same_thread=False)
+        try:
+            if days > 1:
+                return {
+                    "weekly": get_weekly_summary(conn, days),
+                    "people": get_person_profiles(conn),
+                }
+            return {
+                "daily": get_daily_insights(conn, target_date),
+                "people": get_person_profiles(conn),
+            }
+        finally:
+            conn.close()
+
+    return await run_in_threadpool(_query)
+
+
+@app.get("/api/insights/people")
+async def get_people():
+    from cam.behavior_store import get_person_profiles
+
+    def _query():
+        conn = sqlite3.connect(_db_path, check_same_thread=False)
+        try:
+            return get_person_profiles(conn)
+        finally:
+            conn.close()
+
+    return await run_in_threadpool(_query)
+
+
 @app.get("/api/timeline")
 async def get_timeline(
     date: str | None = None,

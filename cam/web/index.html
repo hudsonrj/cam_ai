@@ -433,6 +433,127 @@
       75%  { content: '...'; }
     }
 
+    /* ── INSIGHTS PANEL ── */
+    #insights-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.75);
+      z-index: 150;
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    #insights-overlay.open { display: flex; }
+
+    #insights-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 860px;
+      padding: 24px;
+      position: relative;
+    }
+
+    #insights-close {
+      position: absolute;
+      top: 14px; right: 16px;
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 20px;
+      cursor: pointer;
+    }
+    #insights-close:hover { color: var(--text); }
+
+    #insights-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 20px;
+    }
+
+    .insights-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .metric-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      text-align: center;
+    }
+    .metric-card .mc-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .metric-card .mc-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 5px;
+    }
+
+    .insights-section {
+      margin-bottom: 18px;
+    }
+    .insights-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 5px;
+    }
+
+    .tag-cloud {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .tag {
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      background: var(--blue-dark);
+      color: var(--accent);
+      border: 1px solid var(--border);
+    }
+    .tag.mood-estressado { background: rgba(255,68,68,.15); color: #FF4444; border-color: #FF4444; }
+    .tag.mood-feliz      { background: rgba(63,185,80,.15);  color: #3fb950; border-color: #3fb950; }
+    .tag.mood-cansado    { background: rgba(255,193,7,.15);  color: #ffc107; border-color: #ffc107; }
+
+    .people-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .people-row:last-child { border-bottom: none; }
+    .people-avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: var(--blue-dark);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .people-name { font-weight: 600; flex: 1; }
+    .people-stats { font-size: 11px; color: var(--text-dim); }
+
     /* ── AVATAR FLUTUANTE ── */
     #avatar-wrap {
       position: fixed;
@@ -664,9 +785,10 @@
     <span id="time-display">--:--</span>
     <div id="camera-tabs"></div>
     <span class="spacer"></span>
-    <button class="hdr-btn" id="btn-wake-word" title="Ativar escuta contínua">🎙️ Wake word</button>
-    <button class="hdr-btn" id="btn-tts" title="Fala em voz alta">🔊 Voz</button>
-    <button class="hdr-btn" id="btn-patterns" title="Ver padrões detectados">Padrões</button>
+    <button class="hdr-btn" id="btn-wake-word" title="Ativar escuta contínua">Wake word</button>
+    <button class="hdr-btn" id="btn-tts" title="Fala em voz alta">Voz</button>
+    <button class="hdr-btn" id="btn-patterns" title="Ver padrões detectados">Padroes</button>
+    <button class="hdr-btn" id="btn-insights" title="Ver insights do dia">Insights</button>
   </header>
 
   <!-- MAIN GRID -->
@@ -716,6 +838,41 @@
     </div><!-- /right-col -->
   </div><!-- /main-grid -->
 </div><!-- /app -->
+
+<!-- INSIGHTS DASHBOARD -->
+<div id="insights-overlay">
+  <div id="insights-box">
+    <button id="insights-close">&times;</button>
+    <div id="insights-title">Insights do dia</div>
+
+    <div class="insights-grid" id="insights-metrics"></div>
+
+    <div class="insights-section">
+      <div class="insights-section-title">Humor e tom</div>
+      <div id="insights-mood" class="tag-cloud"></div>
+    </div>
+
+    <div class="insights-section">
+      <div class="insights-section-title">Topicos discutidos</div>
+      <div id="insights-topics" class="tag-cloud"></div>
+    </div>
+
+    <div class="insights-section">
+      <div class="insights-section-title">Empresas e entidades</div>
+      <div id="insights-entities" class="tag-cloud"></div>
+    </div>
+
+    <div class="insights-section">
+      <div class="insights-section-title">Pessoas</div>
+      <div id="insights-people"></div>
+    </div>
+
+    <div class="insights-section">
+      <div class="insights-section-title">Refeicoes registradas</div>
+      <div id="insights-meals" style="font-size:13px;color:var(--text)"></div>
+    </div>
+  </div>
+</div>
 
 <!-- AVATAR FLUTUANTE -->
 <div id="avatar-wrap">
@@ -1381,6 +1538,104 @@ function escHtml(str) {
 }
 
 /* ════════════════════════════════════════════════
+   INSIGHTS DASHBOARD
+   ════════════════════════════════════════════════ */
+function initInsights() {
+  $('btn-insights').addEventListener('click', openInsights);
+  $('insights-close').addEventListener('click', () => {
+    $('insights-overlay').classList.remove('open');
+  });
+  $('insights-overlay').addEventListener('click', e => {
+    if (e.target === $('insights-overlay'))
+      $('insights-overlay').classList.remove('open');
+  });
+}
+
+async function openInsights() {
+  $('insights-overlay').classList.add('open');
+  $('insights-metrics').innerHTML = '<span style="color:var(--text-dim);font-size:13px">Carregando...</span>';
+
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const res = await fetch(`${API_BASE}/api/insights?date=${today}`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    renderInsights(data);
+  } catch (e) {
+    $('insights-metrics').innerHTML = `<span style="color:#FF4444">Erro ao carregar: ${escHtml(String(e))}</span>`;
+  }
+}
+
+function renderInsights(data) {
+  const d = data.daily || {};
+  const people = data.people || [];
+
+  // Metricas principais
+  const metrics = [
+    { label: 'Agua', value: d.water_count ?? 0, unit: 'vezes' },
+    { label: 'Tempo no PC', value: d.total_pc_minutes ?? 0, unit: 'min' },
+    { label: 'Reunioes', value: d.meetings_count ?? 0, unit: '' },
+    { label: 'Ligacoes', value: d.phone_calls ?? 0, unit: '' },
+    { label: 'Estresse', value: d.stress_events ?? 0, unit: 'alertas' },
+    { label: 'Refeicoes', value: (d.meals || []).length, unit: '' },
+  ];
+
+  $('insights-metrics').innerHTML = metrics.map(m =>
+    `<div class="metric-card">
+       <div class="mc-value">${m.value}</div>
+       <div class="mc-label">${m.label}${m.unit ? ' (' + m.unit + ')' : ''}</div>
+     </div>`
+  ).join('');
+
+  // Humor
+  const mood = d.dominant_mood || 'neutro';
+  const moodDist = d.mood_distribution || {};
+  $('insights-mood').innerHTML = Object.entries(moodDist).length
+    ? Object.entries(moodDist).map(([m, n]) =>
+        `<span class="tag mood-${m}">${m} (${n}x)</span>`
+      ).join('')
+    : `<span class="tag">Humor dominante: ${mood}</span>`;
+
+  // Topicos
+  const topics = d.topics || {};
+  $('insights-topics').innerHTML = Object.entries(topics).length
+    ? Object.entries(topics).sort((a,b) => b[1]-a[1]).map(([t, n]) =>
+        `<span class="tag">${t} (${n}x)</span>`
+      ).join('')
+    : '<span style="color:var(--text-dim);font-size:12px">Nenhum topico identificado ainda</span>';
+
+  // Entidades
+  const entities = d.entities || {};
+  $('insights-entities').innerHTML = Object.entries(entities).length
+    ? Object.entries(entities).sort((a,b) => b[1]-a[1]).map(([e, n]) =>
+        `<span class="tag">${e} (${n}x)</span>`
+      ).join('')
+    : '<span style="color:var(--text-dim);font-size:12px">Nenhuma entidade mencionada ainda</span>';
+
+  // Pessoas
+  $('insights-people').innerHTML = people.length
+    ? people.map(p => {
+        const initial = (p.display_name || p.label || '?')[0].toUpperCase();
+        return `<div class="people-row">
+          <div class="people-avatar">${escHtml(initial)}</div>
+          <div class="people-name">${escHtml(p.display_name || p.label)}</div>
+          <div class="people-stats">
+            ${p.seen_count}x visto
+            ${p.total_time_min ? ' · ' + Math.round(p.total_time_min) + ' min' : ''}
+            ${p.last_seen ? ' · ultimo: ' + p.last_seen.slice(5, 16) : ''}
+          </div>
+        </div>`;
+      }).join('')
+    : '<span style="color:var(--text-dim);font-size:12px">Nenhuma pessoa registrada ainda</span>';
+
+  // Refeicoes
+  const meals = d.meals || [];
+  $('insights-meals').innerHTML = meals.length
+    ? meals.map(m => `<div style="padding:4px 0;border-bottom:1px solid var(--border)">${escHtml(m.what || 'refeicao registrada')}</div>`).join('')
+    : '<span style="color:var(--text-dim);font-size:12px">Nenhuma refeicao registrada ainda</span>';
+}
+
+/* ════════════════════════════════════════════════
    AVATAR FLUTUANTE
    ════════════════════════════════════════════════ */
 const avatar = {
@@ -1534,6 +1789,7 @@ async function init() {
   initMicButton();
   initWakeWordButton();
   initPatternsButton();
+  initInsights();
   initAvatar();
 
   showWelcome();
