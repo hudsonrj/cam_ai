@@ -32,6 +32,22 @@ def _is_hallucination(text: str) -> bool:
     # texto muito repetitivo (ex: "e e e e e e")
     if len(set(words)) <= 2 and len(words) > 4:
         return True
+    # frases repetidas (ex: "a gente vai ver. a gente vai ver. a gente vai ver.")
+    import re
+    sentences = [s.strip() for s in re.split(r'[.!?]+', t) if s.strip()]
+    if len(sentences) >= 3:
+        unique = set(sentences)
+        # mais de 60% das frases sao identicas
+        if len(unique) / len(sentences) <= 0.4:
+            return True
+    # segmentos repetidos de 4+ palavras
+    if len(words) >= 8:
+        half = len(words) // 2
+        # verifica se a primeira metade se repete na segunda
+        chunk = " ".join(words[:half])
+        rest = " ".join(words[half:])
+        if chunk in rest or rest in chunk:
+            return True
     return False
 
 
