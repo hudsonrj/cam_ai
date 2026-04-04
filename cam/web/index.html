@@ -1754,8 +1754,9 @@ function startAvatarMic() {
   let _gotResult = false;
 
   rec.onresult = e => {
+    const t = (e.results[0][0].transcript || '').trim();
+    if (!t) return;  // resultado vazio — deixa onend mostrar "Nao entendi"
     _gotResult = true;
-    const t = e.results[0][0].transcript;
     stopAvatarMic();
     submitAvatarChat(t);
   };
