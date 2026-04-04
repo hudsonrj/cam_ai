@@ -1751,14 +1751,34 @@ function startAvatarMic() {
   $('avatar-btn-mic').classList.add('listening');
   $('avatar-voice-label').textContent = 'Ouvindo...';
 
+  let _gotResult = false;
+
   rec.onresult = e => {
+    _gotResult = true;
     const t = e.results[0][0].transcript;
     stopAvatarMic();
     submitAvatarChat(t);
   };
-  rec.onerror = () => stopAvatarMic();
-  rec.onend   = () => stopAvatarMic();
-  try { rec.start(); } catch (_) { stopAvatarMic(); }
+
+  rec.onerror = evt => {
+    if (_gotResult) return;
+    const msg = {
+      'no-speech':      'Nao ouvi nada. Tente falar mais perto do microfone.',
+      'network':        'Erro de rede no reconhecimento de voz. Verifique a conexao.',
+      'not-allowed':    'Permissao de microfone negada.',
+      'audio-capture':  'Microfone nao encontrado.',
+    }[evt.error] || `Erro de reconhecimento: ${evt.error}`;
+    stopAvatarMic();
+    appendAvatarBubble('bot', msg);
+  };
+
+  rec.onend = () => {
+    if (_gotResult) return;
+    stopAvatarMic();
+    appendAvatarBubble('bot', 'Nao entendi. Clique no microfone e tente novamente.');
+  };
+
+  try { rec.start(); } catch (e) { stopAvatarMic(); appendAvatarBubble('bot', `Erro ao iniciar microfone: ${e.message}`); }
 }
 
 function stopAvatarMic() {
