@@ -1734,52 +1734,42 @@ function toggleAvatarMic() {
 }
 
 function startAvatarMic() {
-  if (!SpeechRecognition) {
-    appendAvatarBubble('bot', 'Reconhecimento de voz não está disponível neste navegador. Use o Chrome.');
-    return;
-  }
-  if (avatar.recognition) {
-    try { avatar.recognition.abort(); } catch (_) {}
-  }
-
-  const rec = createRecognition({ interim: false, continuous: false });
-  avatar.recognition = rec;
+  if (avatar.micListening) return;
   avatar.micListening = true;
 
   $('avatar-btn').classList.remove('idle', 'thinking');
   $('avatar-btn').classList.add('listening-av');
   $('avatar-btn-mic').classList.add('listening');
-  $('avatar-voice-label').textContent = 'Ouvindo...';
 
-  let _gotResult = false;
+  const DURATION = 5;
+  let remaining = DURATION;
+  $('avatar-voice-label').textContent = `Ouvindo... ${remaining}s`;
+  const timer = setInterval(() => {
+    remaining--;
+    if (remaining > 0) {
+      $('avatar-voice-label').textContent = `Ouvindo... ${remaining}s`;
+    } else {
+      clearInterval(timer);
+      $('avatar-voice-label').textContent = 'Transcrevendo...';
+    }
+  }, 1000);
 
-  rec.onresult = e => {
-    const t = (e.results[0][0].transcript || '').trim();
-    if (!t) return;  // resultado vazio — deixa onend mostrar "Nao entendi"
-    _gotResult = true;
-    stopAvatarMic();
-    submitAvatarChat(t);
-  };
-
-  rec.onerror = evt => {
-    if (_gotResult) return;
-    const msg = {
-      'no-speech':      'Nao ouvi nada. Tente falar mais perto do microfone.',
-      'network':        'Erro de rede no reconhecimento de voz. Verifique a conexao.',
-      'not-allowed':    'Permissao de microfone negada.',
-      'audio-capture':  'Microfone nao encontrado.',
-    }[evt.error] || `Erro de reconhecimento: ${evt.error}`;
-    stopAvatarMic();
-    appendAvatarBubble('bot', msg);
-  };
-
-  rec.onend = () => {
-    if (_gotResult) return;
-    stopAvatarMic();
-    appendAvatarBubble('bot', 'Nao entendi. Clique no microfone e tente novamente.');
-  };
-
-  try { rec.start(); } catch (e) { stopAvatarMic(); appendAvatarBubble('bot', `Erro ao iniciar microfone: ${e.message}`); }
+  fetch(`/api/voice/record?duration=${DURATION}`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      clearInterval(timer);
+      stopAvatarMic();
+      if (data.error === 'no_speech' || !data.text || !data.text.trim()) {
+        appendAvatarBubble('bot', 'Nao ouvi nada. Tente falar mais perto do microfone.');
+      } else {
+        submitAvatarChat(data.text.trim());
+      }
+    })
+    .catch(err => {
+      clearInterval(timer);
+      stopAvatarMic();
+      appendAvatarBubble('bot', `Erro ao gravar: ${err.message}`);
+    });
 }
 
 function stopAvatarMic() {
@@ -1788,10 +1778,6 @@ function stopAvatarMic() {
   $('avatar-btn').classList.add(avatar.thinking ? 'thinking' : 'idle');
   $('avatar-btn-mic').classList.remove('listening');
   $('avatar-voice-label').textContent = avatar.thinking ? 'Processando...' : 'Clique para falar';
-  if (avatar.recognition) {
-    try { avatar.recognition.abort(); } catch (_) {}
-    avatar.recognition = null;
-  }
 }
 
 /* ════════════════════════════════════════════════

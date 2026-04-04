@@ -201,6 +201,61 @@ async def generate_summary():
     return await _run()
 
 
+# ── Voice Record API ─────────────────────────────────────────────────────────
+
+@app.post("/api/voice/record")
+async def voice_record(duration: int = 5):
+    """Grava `duration` segundos do microfone configurado e transcreve."""
+    def _record():
+        import tempfile
+        import wave
+        import numpy as np
+        import sounddevice as sd
+
+        cfg = _multi_service.config if _multi_service else {}
+        device_idx = cfg.get("audio", {}).get("device", 2)
+        sr = 16000
+
+        data = sd.rec(int(duration * sr), samplerate=sr, channels=1,
+                      dtype="float32", device=device_idx)
+        sd.wait()
+
+        rms = float(np.sqrt(np.mean(data ** 2)))
+        if rms < 0.001:
+            return {"text": "", "error": "no_speech"}
+
+        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        try:
+            with wave.open(tmp.name, "w") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(sr)
+                wf.writeframes((data[:, 0] * 32767).astype(np.int16).tobytes())
+
+            # Reutiliza o modelo do transcriber se disponivel
+            if _ambient_transcriber:
+                model = _ambient_transcriber._get_model()
+            else:
+                from faster_whisper import WhisperModel
+                model = WhisperModel("small", device="cpu", compute_type="int8")
+
+            segments, _ = model.transcribe(
+                tmp.name, language="pt", beam_size=5,
+                vad_filter=True,
+                vad_parameters={"threshold": 0.5, "min_speech_duration_ms": 200},
+                no_speech_threshold=0.7,
+            )
+            text = " ".join(s.text.strip() for s in segments).strip()
+            return {"text": text, "error": None}
+        finally:
+            try:
+                os.unlink(tmp.name)
+            except Exception:
+                pass
+
+    return await run_in_threadpool(_record)
+
+
 # ── Ambient Audio API ────────────────────────────────────────────────────────
 
 @app.get("/api/ambient/devices")
