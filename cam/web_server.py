@@ -70,7 +70,10 @@ async def _bridge_sync_queue(sync_q) -> None:
         try:
             item = await loop.run_in_executor(None, _blocking_get, sync_q)
             if item and _web_queue and item.get("type") not in _SKIP_TYPES:
-                await _web_queue.put(item)
+                try:
+                    _web_queue.put_nowait(item)  # nao bloqueia se cheia
+                except asyncio.QueueFull:
+                    pass  # descarta se fila cheia — evita travar a bridge
         except Exception:
             await asyncio.sleep(0.1)
 
@@ -94,17 +97,20 @@ async def _event_dispatcher() -> None:
             await asyncio.sleep(0.1)
             continue
 
-        # Serializa: remove jpeg_bytes (binário) antes de enviar como JSON
-        msg = {k: v for k, v in payload.items() if k != "jpeg_bytes"}
-        data = json.dumps(msg)
+        try:
+            # Serializa: remove jpeg_bytes (binário) antes de enviar como JSON
+            msg = {k: v for k, v in payload.items() if k != "jpeg_bytes"}
+            data = json.dumps(msg, default=str)  # default=str serializa tipos desconhecidos
 
-        dead = set()
-        for ws in list(_ws_clients):
-            try:
-                await ws.send_text(data)
-            except Exception:
-                dead.add(ws)
-        _ws_clients.difference_update(dead)
+            dead = set()
+            for ws in list(_ws_clients):
+                try:
+                    await ws.send_text(data)
+                except Exception:
+                    dead.add(ws)
+            _ws_clients.difference_update(dead)
+        except Exception as e:
+            print(f"[dispatcher] erro ao enviar evento: {e}")
 
 
 # ── Static + Dashboard ────────────────────────────────────────────────────────
