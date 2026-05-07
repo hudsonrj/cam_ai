@@ -30,6 +30,7 @@ _ambient_transcriber = None
 _db_path = "data/cam.db"
 _ws_clients: set[WebSocket] = set()
 _web_queue: asyncio.Queue | None = None  # set on startup
+_last_analysis: dict | None = None       # ultima analise para enviar a novos clientes
 
 app = FastAPI(title="CAM AI", docs_url=None, redoc_url=None)
 
@@ -54,11 +55,29 @@ async def _startup() -> None:
     global _web_queue
     _web_queue = asyncio.Queue(maxsize=200)
     asyncio.create_task(_event_dispatcher())
+    asyncio.create_task(_watchdog())
 
     if _multi_service:
         # Registra queue no event bus — alimentada pela thread de captura
         sync_q = _multi_service.event_bus.subscribe(maxsize=200)
         asyncio.create_task(_bridge_sync_queue(sync_q))
+
+
+async def _watchdog() -> None:
+    """Re-registra o subscriber do event_bus se a bridge morrer."""
+    import asyncio as _asyncio
+    await _asyncio.sleep(5)  # aguarda service iniciar
+    while True:
+        await _asyncio.sleep(30)
+        if _multi_service and _web_queue:
+            bus = _multi_service.event_bus
+            # Se nao ha subscribers ainda, registra agora
+            with bus._lock:
+                n = len(bus._subscribers)
+            if n == 0:
+                print("[watchdog] nenhum subscriber no event_bus — registrando bridge")
+                sync_q = bus.subscribe(maxsize=200)
+                _asyncio.create_task(_bridge_sync_queue(sync_q))
 
 
 _SKIP_TYPES = {"live_feed"}  # tipos de alto volume que o browser não usa
@@ -71,9 +90,9 @@ async def _bridge_sync_queue(sync_q) -> None:
             item = await loop.run_in_executor(None, _blocking_get, sync_q)
             if item and _web_queue and item.get("type") not in _SKIP_TYPES:
                 try:
-                    _web_queue.put_nowait(item)  # nao bloqueia se cheia
+                    _web_queue.put_nowait(item)
                 except asyncio.QueueFull:
-                    pass  # descarta se fila cheia — evita travar a bridge
+                    pass
         except Exception:
             await asyncio.sleep(0.1)
 
@@ -88,6 +107,7 @@ def _blocking_get(q, timeout: float = 1.0):
 
 async def _event_dispatcher() -> None:
     """Consome web_queue e envia para todos os WebSocket clients."""
+    global _last_analysis
     while True:
         try:
             payload = await asyncio.wait_for(_web_queue.get(), timeout=2.0)
@@ -98,9 +118,12 @@ async def _event_dispatcher() -> None:
             continue
 
         try:
-            # Serializa: remove jpeg_bytes (binário) antes de enviar como JSON
             msg = {k: v for k, v in payload.items() if k != "jpeg_bytes"}
-            data = json.dumps(msg, default=str)  # default=str serializa tipos desconhecidos
+            data = json.dumps(msg, default=str)
+
+            # Guarda ultima analise para reenviar a novos clientes
+            if payload.get("type") == "analysis":
+                _last_analysis = msg
 
             dead = set()
             for ws in list(_ws_clients):
@@ -205,6 +228,64 @@ async def generate_summary():
         conn.close()
         return {"date": target, "summary": summary}
     return await _run()
+
+
+@app.get("/api/debug")
+async def debug_state():
+    subs = 0
+    if _multi_service:
+        with _multi_service.event_bus._lock:
+            subs = len(_multi_service.event_bus._subscribers)
+    return {
+        "service_ok": _multi_service is not None,
+        "web_queue_size": _web_queue.qsize() if _web_queue else -1,
+        "event_bus_subscribers": subs,
+        "ws_clients": len(_ws_clients),
+    }
+
+
+@app.post("/api/debug/inject_bus")
+async def debug_inject_bus():
+    """Publica evento via event_bus para testar a bridge sync→async."""
+    if not _multi_service:
+        return {"error": "service not ready"}
+    from datetime import datetime
+    _multi_service.event_bus.publish({
+        "type": "analysis",
+        "camera_id": "main",
+        "frame_id": 0,
+        "description": "[TESTE VIA BUS] diagnostico da bridge.",
+        "events": [],
+        "triggered": [],
+        "action_results": [],
+        "ts": datetime.now().strftime("%H:%M:%S"),
+    })
+    subs = 0
+    with _multi_service.event_bus._lock:
+        subs = len(_multi_service.event_bus._subscribers)
+    return {"ok": True, "subscribers": subs}
+
+
+@app.post("/api/debug/test_event")
+async def debug_test_event():
+    """Injeta um evento analysis de teste direto na web_queue."""
+    if not _web_queue:
+        return {"error": "web_queue not ready"}
+    from datetime import datetime
+    try:
+        _web_queue.put_nowait({
+            "type": "analysis",
+            "camera_id": "main",
+            "frame_id": 0,
+            "description": "[TESTE] Evento de diagnostico injetado diretamente.",
+            "events": [],
+            "triggered": [],
+            "action_results": [],
+            "ts": datetime.now().strftime("%H:%M:%S"),
+        })
+        return {"ok": True, "queue_size": _web_queue.qsize()}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 # ── Voice Record API ─────────────────────────────────────────────────────────
@@ -400,6 +481,29 @@ async def websocket_endpoint(ws: WebSocket) -> None:
     await ws.accept()
     _ws_clients.add(ws)
     ws_id = str(id(ws))
+
+    # Envia ultima analise imediatamente para o novo cliente nao ficar em branco
+    cached = _last_analysis
+    if not cached:
+        # Busca no banco se ainda nao ha analise em memoria
+        def _fetch():
+            conn = sqlite3.connect(_db_path, check_same_thread=False)
+            try:
+                row = conn.execute(
+                    "SELECT id, timestamp, description FROM frames ORDER BY id DESC LIMIT 1"
+                ).fetchone()
+                if row:
+                    return {"type": "analysis", "camera_id": "main",
+                            "frame_id": row[0], "ts": row[1][-8:],
+                            "description": row[2] or "", "events": [], "triggered": []}
+            finally:
+                conn.close()
+        cached = await run_in_threadpool(_fetch)
+    if cached:
+        try:
+            await ws.send_text(json.dumps(cached, default=str))
+        except Exception:
+            pass
 
     try:
         while True:
